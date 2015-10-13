@@ -4,21 +4,22 @@ library(jagsUI)
 ####  START HERE WITH PROCESSED DATA ####
 #########################################
 
+# if running on the PC:
 setwd("K:\Users\Bob\Panama\DATA")
 
+# if running on my Mac
 setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 
 # load("alldata_NCI.RDA")
 load("data_10.13.15.RDA")
 
 
-head(tdata)
 
-tdata <- droplevels(tdata)
 
 #############################
 ####  THINGS TO CONSIDER: 
-####  1) Remove palms for growth?
+
+####  1) How to deal with palms for growth analysis?
 
 ####  2) Whether / how to remove growth outliers?
 
@@ -26,9 +27,10 @@ tdata <- droplevels(tdata)
 # tdata <- tdata[tdata$spcode != 'NULL',]
 
 ####  4) Repeat measures of same individual in single plot...
+# Incorporate individual effect...
 
 ####  5) How to deal with missing trait data when doing trait NCI?
-
+# See Lasky etal 2014 PNAS
 
 #############################
 
@@ -58,6 +60,7 @@ tdata <- droplevels(tdata)
 
 ## Log-transform coefficients
 tdata$log.nci <- log(tdata$nci)
+tdata$log.tnci <- log(tdata$nci)
 tdata$log.dbh <- log(tdata$dbh)
 
 # ## *CANCEL* Standardize coefficients
@@ -69,6 +72,7 @@ tdata$log.dbh <- log(tdata$dbh)
 ## Center coefficients within plots (without scaling)
 tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
 tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, scale, scale=F))
+tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, scale, scale=F))
 tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
 tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
 
@@ -107,6 +111,7 @@ nplot <- length(levels(as.factor(d$plot)))
 					growth = as.numeric(d$growth.z),
 					survive = as.numeric(d$survival),
 					nci = as.numeric(d$log.nci.z),
+					tnci = as.numeric(d$log.tnci.z),
 					dbh = as.numeric(d$log.dbh.z),
 					trait = as.numeric(tapply(d$wd, d$speciesxplot, mean)),
 					species = as.numeric(d$speciesxplot),
@@ -177,7 +182,6 @@ cat(" model {
 }
 ",fill=TRUE)
 sink()
-################################
 
 ################################
 #### Build the model
@@ -186,29 +190,36 @@ sink("growth_3level_trait.bug")
 cat(" model {
 
 	for( i in 1:ntree ) {
-		growth[i] ~ dnorm(mu[i], tau[6])
+
+		growth[i] ~ dnorm(mu[i], tau[7])
+
 		mu[i] <-  exp(z[i])
-		z[i]  <-  beta.1[species[i]] + beta.2[species[i]] * (nci[i]) + beta.3[species[i]] * (dbh[i])
+
+		z[i]  <-  beta.1[species[i]] 
+					+ beta.2[species[i]] * (nci[i]) 
+					+ beta.3[species[i]] * (tnci[i]) 
+					+ beta.4[species[i]] * (dbh[i])
 		}
 
 	for( j in 1:nspecies ) {
 		beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[1])			# species-specific average growth
 		beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[2])			# speces-specific crowding effect
-		beta.3[j] ~ dnorm(mu.beta[3], tau[3])												# species-specific size effect
+		beta.3[j] ~ dnorm(mu.beta[3], tau[3])												# species-specific triat-hood effect
+		beta.4[j] ~ dnorm(mu.beta[4], tau[4])												# species-specific size effect
 		}
 
 	for( k in 1:nplot ) {
-		beta.t.1[k] ~ dnorm(beta.t[1], tau[4])			# plot-specific trait effect on average growth
-		beta.t.2[k] ~ dnorm(beta.t[2], tau[5])			# plot-specific trait effect on sensitivity to crowding
+		beta.t.1[k] ~ dnorm(beta.t[1], tau[5])			# plot-specific trait effect on average growth
+		beta.t.2[k] ~ dnorm(beta.t[2], tau[6])			# plot-specific trait effect on sensitivity to crowding
 		}
 
 	beta.t[1] ~ dnorm(0, 1E-4)
 	beta.t[2] ~ dnorm(0, 1E-4)
-	beta.t[3] ~ dnorm(0, 1E-4)
 
 	mu.beta[1] ~ dnorm(0, 1E-4)
 	mu.beta[2] ~ dnorm(0, 1E-4)
 	mu.beta[3] ~ dnorm(0, 1E-4)
+	mu.beta[4] ~ dnorm(0, 1E-4)
 
 	tau[1] ~ dgamma(1E-3, 1E-3)
 	tau[2] ~ dgamma(1E-3, 1E-3)	
@@ -216,6 +227,7 @@ cat(" model {
 	tau[4] ~ dgamma(1E-3, 1E-3)	
 	tau[5] ~ dgamma(1E-3, 1E-3)
 	tau[6] ~ dgamma(1E-3, 1E-3)	
+	tau[7] ~ dgamma(1E-3, 1E-3)	
 
 	sigma <- 1 / sqrt(tau)
 }
@@ -224,18 +236,30 @@ sink()
 ################################
 
 #### Specify the model
-n.adapt=5000
+n.adapt=100
 n.update=1000
 n.iter=1000
 
 inits <- function (){
-	list(beta.t = rnorm(3),
-	mu.beta = rnorm(3),
-	tau = rgamma(6, 1E-3, 1E-3))
+	list(
+	beta.t = rnorm(2),
+	mu.beta = rnorm(4),
+	tau = rgamma(7, 1E-3, 1E-3))
 	}
+
+
+### USE jagsUI:
+library(jagsUI)
+params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","r","tau")
+setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+mod <- jagsUI::jags(data, inits, params, "growth_3level_trait.bug", n.chains=1, n.iter=100)
+
+
 
 ### Initiate the model
 jm <- jags.model("growth_3level_trait.bug", data=data, n.chains=1, n.adapt=n.adapt)
+
+
 
 # Burnin the chain
 update(jm, n.iter = n.update)
@@ -259,11 +283,11 @@ abline(h=0)
 
 
 
-##############################
-##############################
-### SURVIVAL  #################
-##############################
-##############################
+############################################################
+############################################################
+### SURVIVAL 
+############################################################
+############################################################
 
 ##############################
 ### TEST SURVIVAL MODELS WITH SUBSET DATASET
@@ -274,7 +298,7 @@ head(d)
 # Generate a species-plot column for correct indexing of model...
 d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))
 
-# d <- d[sample(1:nrow(d), 2000),]
+d <- d[sample(1:nrow(d), 2000),]
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
 
 # EXCLUDE SINGLETON SPECIES (TROUBLESHOOTING MODEL...)
@@ -300,6 +324,7 @@ nplot <- length(levels(as.factor(d$plot)))
 					time = as.numeric(d$days),
 #					time = as.numeric(scale(d$days)),
 					nci = as.numeric(d$log.nci.z),
+					tnci = as.numeric(d$log.tnci.z),
 					dbh = as.numeric(d$log.dbh.z),
 					trait = as.numeric(tapply(d$wd, d$speciesxplot, mean)),
 					species = as.numeric(d$speciesxplot),
@@ -309,8 +334,10 @@ nplot <- length(levels(as.factor(d$plot)))
 ################################
 #### Build the model
 
-sink("survival_3level_trait.bug")
+setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+setwd("K:\Users\Bob\Panama\MODELS")
 
+sink("survival_3level_trait_tnci.bug")
 cat(" model {
 
 	for( i in 1:ntree ) {
@@ -323,20 +350,20 @@ cat(" model {
 
 		z[i]  <- beta.1[species[i]]
 					+ beta.2[species[i]] * (nci[i])
-					+ beta.3[species[i]] * (dbh[i])
-#					+ beta.4[species[i]] * (tnci[i])
+					+ beta.3[species[i]] * (tnci[i])
+					+ beta.4[species[i]] * (dbh[i])
 		}
 
 	for( j in 1:nspecies ) {
 		beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[1])			# species-specific average survival
 		beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[2])			# speces-specific crowding effect
 		beta.3[j] ~ dnorm(mu.beta[3], tau[3])													# species-specific size effect
-#		beta.4[j] ~ dnorm(mu.beta[4], tau[6])												# species-specific trait-mediate crowding
+		beta.4[j] ~ dnorm(mu.beta[4], tau[4])												# species-specific trait-mediate crowding
 		}
 
 	for( k in 1:nplot ) {
-		beta.t.1[k] ~ dnorm(beta.t[1], tau[4])			# plot-specific trait effect on average survival
-		beta.t.2[k] ~ dnorm(beta.t[2], tau[5])			# plot-specific trait effect on sensitivity to crowding
+		beta.t.1[k] ~ dnorm(beta.t[1], tau[5])			# plot-specific trait effect on average survival
+		beta.t.2[k] ~ dnorm(beta.t[2], tau[6])			# plot-specific trait effect on sensitivity to crowding
 		}
 
 	r ~ dgamma(1, 1E-3)
@@ -347,14 +374,14 @@ cat(" model {
 	mu.beta[1] ~ dnorm(0, 1E-4)
 	mu.beta[2] ~ dnorm(0, 1E-4)
 	mu.beta[3] ~ dnorm(0, 1E-4)
-#	mu.beta[4] ~ dnorm(0, 1E-4)
+	mu.beta[4] ~ dnorm(0, 1E-4)
 
 	tau[1] ~ dgamma(1E-3, 1E-3)
 	tau[2] ~ dgamma(1E-3, 1E-3)	
 	tau[3] ~ dgamma(1E-3, 1E-3)
 	tau[4] ~ dgamma(1E-3, 1E-3)	
 	tau[5] ~ dgamma(1E-3, 1E-3)
-#	tau[6] ~ dgamma(1E-3, 1E-3)	
+	tau[6] ~ dgamma(1E-3, 1E-3)	
 
 	sigma <- 1 / sqrt(tau)
 }
@@ -363,25 +390,35 @@ sink()
 ################################
 
 
-#################
 #### Specify the model
 n.adapt=100
 n.update=500
 n.iter=50
 
-eps <- 0.1
+
 inits <- function (){
+	eps <- 0.1
 	list(beta.t = rnorm(2),
-	mu.beta = rnorm(3),
-	tau = rgamma(5, 0.1, 1E-3),
+	mu.beta = rnorm(4),
+	tau = rgamma(6, 0.1, 1E-3),
 	r = 2,
 	t = with(data, time + ifelse(alive, eps, -eps)))
 	}
-start <- inits()
+inits()
 
 
 ### Initiate the model
-jm <- jags.model("survival_3level_trait.bug", data=data, n.chains=3, n.adapt=n.adapt, inits=start)
+jm <- jags.model("survival_3level_trait_tnci.bug", data=data, n.chains=3, n.adapt=n.adapt, inits=start)
+
+
+
+
+### USE jagsUI:
+library(jagsUI)
+params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","r","tau")
+setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+mod <- jagsUI::jags(data, inits, params, "survival_3level_trait_tnci.bug", n.chains=3, n.iter=100)
+
 
 # Burnin the chain
  update(jm, n.iter = n.update)
