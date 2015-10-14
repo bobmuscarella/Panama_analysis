@@ -344,31 +344,28 @@ abline(h=0)
 ### SURVIVAL 
 ############################################################
 ############################################################
-
 d <- tdata
+d <- d[d$Not.Edge==1,]
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
-rownames(d) <- NULL
 
-### Generate a species-plot column for correct indexing of model...
 d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))
+d <- d[!is.na(d$survival),]
+d <- d[! is.na (d$wd),]
+d$indiv <- as.numeric(as.factor(d$id))
 
+rownames(d) <- NULL
+d <- droplevels(d)
 
 ##############################
 ### TEST SURVIVAL MODELS WITH SUBSET DATASET
 ##############################
-
-d <- d[!is.na(d$survival),]
 d <- d[sample(1:nrow(d), 5000),]
-d <- d[order(d$plot, d$spcode, d$id, d$census),]
-d <- droplevels(d)
-d <- d[! is.na (d$wd),]
-d <- droplevels(d)
 d$indiv <- as.numeric(as.factor(d$id))
-
 d <- droplevels(d)
-table(d$survival)
 
-
+##############################
+### BUILD DATA
+##############################
 			data = list (
 					ntree = nrow(d),
 					nindiv = length(unique(d$id)),
@@ -386,11 +383,11 @@ table(d$survival)
 					plot = as.numeric(tapply(as.numeric(as.factor(d$plot)), d$speciesxplot, mean))
 				)
 
+
 ################################
-#### Build the model
-
+#### Build the models
+################################
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
-
 # setwd("K:\Users\Bob\Panama\MODELS")
 
 sink("survival_3level_trait_tnci.bug")
@@ -453,22 +450,23 @@ cat(" model {
 sink()
 ################################
 
-
 inits <- function (){
 	eps <- 0.1
 	list(beta.t = rnorm(2),
 	mu.beta = rnorm(4),
-	tau = rgamma(7, 0.1, 1E-3) + 1E-10,
+	tau = rgamma(7, 0.1, 1E-3) + 1E-10,  # for some reason, jagsUI won't allow tau.inits=0...
 	r = 2,
 	t = with(data, time + ifelse(alive, eps, -eps)))
 	}
-inits()
-
 
 ### USE jagsUI:
 params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","r","tau")
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+# setwd("K:\Users\Bob\Panama\MODELS")
 mod <- jagsUI::jags(data, inits, params, "survival_3level_trait_tnci.bug", n.chains=3, n.iter=1000)
+
+
+
 
 
 
