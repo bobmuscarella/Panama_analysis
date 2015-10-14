@@ -38,11 +38,7 @@ tdata$Growth.Include[tdata$palm==F & !is.na(tdata$growth)] <- T
 tdata <- tdata[tdata$spcode != 'NULL',]
 
 ###############
-####  4) Repeat measures of same individual in single plot...
-# Need to incorporate individual effect... (using 'id' column)
-
-###############
-####  5) How to deal with missing trait data when doing trait NCI?
+####  4) How to deal with missing trait data when doing trait NCI?
 # See Lasky etal 2014 PNAS
 
 
@@ -132,14 +128,29 @@ setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 #### Build the model
 sink("growth_simple.bug")
 cat(" model{
-	for( i in 1:ntree ) {		growth[i] ~ dnorm(mu[i], tau[4])
+	for( i in 1:ntree ) {
+		growth[i] ~ dnorm(mu[i], tau[4])
 		mu[i] <-  exp(z[i])
-		z[i]  <-  beta.1[species[i]] + (beta.2[species[i]] * dbh[i]) + (beta.3[species[i]] * nci[i])		}	for( j in 1:nspecies ) {		beta.1[j] ~ dnorm(mu.beta[1], tau[1])
+		z[i]  <-  beta.1[species[i]] + (beta.2[species[i]] * dbh[i]) + (beta.3[species[i]] * nci[i])
+		}
+
+	for( j in 1:nspecies ) {
+		beta.1[j] ~ dnorm(mu.beta[1], tau[1])
 		beta.2[j] ~ dnorm(mu.beta[2], tau[2])
 		beta.3[j] ~ dnorm(mu.beta[3], tau[3])
-		}	mu.beta[1] ~ dnorm(0, 1E-4)	mu.beta[2] ~ dnorm(0, 1E-4)	mu.beta[3] ~ dnorm(0, 1E-4)	tau[1] ~ dgamma(1E-3, 1E-3)	tau[2] ~ dgamma(1E-3, 1E-3)		tau[3] ~ dgamma(1E-3, 1E-3)
+		}
+
+	mu.beta[1] ~ dnorm(0, 1E-4)
+	mu.beta[2] ~ dnorm(0, 1E-4)
+	mu.beta[3] ~ dnorm(0, 1E-4)
+
+	tau[1] ~ dgamma(1E-3, 1E-3)
+	tau[2] ~ dgamma(1E-3, 1E-3)	
+	tau[3] ~ dgamma(1E-3, 1E-3)
 	tau[4] ~ dgamma(1E-3, 1E-3)	
-	sigma <- 1 / sqrt(tau)}
+
+	sigma <- 1 / sqrt(tau)
+}
 
 ",fill=TRUE)
 sink()
