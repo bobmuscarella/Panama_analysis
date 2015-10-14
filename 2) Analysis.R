@@ -330,7 +330,7 @@ mod <- jagsUI::jags(data, inits, params,
 mod
 
 paste("Start at:", Sys.time())
-update(mod, n.iter=50000)
+mod <- update(mod, n.iter=50000)
 paste("Finish at:", Sys.time())
 
 
