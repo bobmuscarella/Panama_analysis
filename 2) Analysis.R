@@ -322,11 +322,18 @@ params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","tau")
 setwd("K:/Bob/Panama/MODELS")
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 
-mod <- jagsUI::jags(data, inits, params, "growth_3level_trait.bug", n.chains=3, n.iter=1000, parallel=T)
+mod <- jagsUI::jags(data, inits, params, 
+                    "growth_3level_trait.bug", 
+                    n.chains=3, n.adapt=1000, n.iter=5000, 
+                    n.burnin=1000, n.thin=5, parallel=TRUE)
 
 mod
 
-update(mod, n.iter=5000)
+paste("Start at:", Sys.time())
+update(mod, n.iter=50000)
+paste("Finish at:", Sys.time())
+
+
 
 
 
