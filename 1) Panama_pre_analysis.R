@@ -308,9 +308,6 @@ setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 #save(tdata, file='alldata_NCI.RDA')
 
 
-####################################################################
-####################################################################
-####################################################################
 ##################################
 ### CHUNK 4 : GET TRAIT NCI 		    ####
 ##################################
@@ -354,7 +351,49 @@ Trait.Neigh.Fun <- function(i, trait){
 tdata$tnci <- unlist(lapply(1:nrow(tdata), Trait.Neigh.Fun, 'wd'))
 
 # save(tdata, file='data_10.13.15.RDA')
+setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 load("data_10.13.15.RDA")
 
 head(tdata)
+
+
+
+
+##################################
+### CHUNK 5 : GET UNKNOWN TRAIT NCI
+##################################
+
+# A function to calculate NCI based only on stems with unknown trait value for the stem in row i
+
+### RUN THIS ... (POSSIBLY  ON OTHER MACHINE, TAKES OVERNIGHT)
+Unk.Trait.Neigh.Fun <- function(i, trait){ # a function to calculate trait NCI for the stem in row i
+  if(tdata$Not.Edge[i] == 1){ #if stem is not on the edge
+		#Focal stem in row i
+    foc.tree <- tdata[i,] 
+    # Gets neighboring stems within 20 meters and from the same census year
+    neighz <- tdata[(1:nrow(tdata))!=i & sqrt((tdata$x - foc.tree$x)^2 + (tdata$y - foc.tree$y)^2) <= 20 & tdata$census == foc.tree$census & tdata$plot == foc.tree$plot,] 
+	# Select only stems with unknown trait data
+	sub.neighz <- neighz[ is.na(neighz[,trait]) ,]
+	# If some of the neighboring stems have the same coordinates as focal tree, add a slight offset
+    if(sum(((sub.neighz$x == foc.tree$x) + (sub.neighz$y == foc.tree$y)) == 2) > 0){
+		# Changes stems with same coordinates
+    	sub.neighz[((sub.neighz$x == foc.tree$x) + (sub.neighz$y == foc.tree$y)) == 2 ,3:4] <- sub.neighz[((sub.neighz$x == foc.tree$x) + (sub.neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.25, 0.25) 
+    }
+	# Calculate NCI using only stems with missing trait information
+	# Gives NCI using DBH^2 and dist^-2'
+    NCI <- sum(na.omit(sub.neighz$dbh^2/((sub.neighz$x - foc.tree$x)^2 + (sub.neighz$y - foc.tree$y)^2))) 
+	NCI
+  }else{
+    NA #For edge stems   
+  }	
+}
+
+
+tdata$u.t.nci <- unlist(lapply(1:nrow(tdata), Unk.Trait.Neigh.Fun, 'wd'))
+
+
+# save(tdata, file="X")
+# setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+# load("X")
+
 
