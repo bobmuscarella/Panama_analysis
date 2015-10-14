@@ -6,7 +6,7 @@ library(jagsUI)
 #########################################
 
 # if running on the PC:
-setwd("K:\Users\Bob\Panama\DATA")
+setwd("K:/Bob/Panama/DATA")
 
 # if running on my Mac
 setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
@@ -92,7 +92,7 @@ d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))
 ##############################
 ### TEST GROWTH MODELS WITH SUBSET DATASET
 d <- d[!is.na(d$growth),]
-d <- d[sample(1:nrow(d), 5000),]
+#d <- d[sample(1:nrow(d), 5000),]
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
 d <- droplevels(d)
 
@@ -123,7 +123,9 @@ d$indiv <- as.numeric(as.factor(d$id))
 				)
 
 #### SET MODEL RUN LENGTHS
+setwd("K:/Bob/Panama/MODELS")
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+
 
 #### Build the model
 sink("growth_simple.bug")
@@ -149,7 +151,9 @@ cat(" model{
 	tau[3] ~ dgamma(1E-3, 1E-3)
 	tau[4] ~ dgamma(1E-3, 1E-3)	
 <<<<<<< HEAD
-	sigma <- 1 / sqrt(tau)}
+
+	sigma <- 1 / sqrt(tau)
+}
 
 ",fill=TRUE)
 sink()
@@ -314,9 +318,13 @@ inits <- function (){
 
 ### USE jagsUI:
 params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","tau")
+
+setwd("K:/Bob/Panama/MODELS")
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 
-mod <- jagsUI::jags(data, inits, params, "growth_3level_trait.bug", n.chains=2, n.iter=1000, parallel=T)
+mod <- jagsUI::jags(data, inits, params, "growth_3level_trait.bug", n.chains=3, n.iter=1000, parallel=T)
+
+mod
 
 update(mod, n.iter=5000)
 
