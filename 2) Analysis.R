@@ -1030,3 +1030,8 @@ plot(coda.results, ask=T)
 gelman.diag(coda.results)
 
 res <- summary(coda.results)
+
+
+plot(data$trait, res[[2]][paste('beta.2[',1:nspecies,']',sep=''),3], bg=data$plot, pch=21, ylim=c(-.1,.1))
+segments(data$trait, res[[2]][paste('beta.2[',1:nspecies,']',sep=''),1], data$trait, res[[2]][paste('beta.2[',1:nspecies,']',sep=''),5], col= data$plot, lwd=2)
+abline(h=0)
