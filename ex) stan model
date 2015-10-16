@@ -101,7 +101,7 @@ ind_effect ~ normal(0, sigma2);
 
 '
 
-
+## TEST WITH SOME SIMULATED DATA...
 ndie <- 100
 nlive <- 200
 
