@@ -14,6 +14,8 @@ setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 # load("alldata_NCI.RDA")
 load("data_10.13.15.RDA")
 
+# Remove edge, and species with problematic 
+tdata <- tdata[tdata$Not.Edge==1 & !is.na(tdata$tnci) & tdata$tnci>0,]
 
 ################################################################
 ####  CURRENT CONSIDERATIONS: 
@@ -88,11 +90,20 @@ head(d)
 d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))
 
 
+### SUBSAMPLE BCI AND SHERMAN DATA TO MATCH COCOLI SAMPLE SIZE
+bci.samp <- sample(which(d$plot=='bci'), sum(d$plot=='cocoli'))
+d <- d[d$plot != 'bci' | rownames(d) %in% bci.samp,]
+rownames(d) <- NULL
+
+sherman.samp <- sample(which(d$plot=='sherman'), sum(d$plot=='cocoli'))
+d <- d[d$plot != 'sherman' | rownames(d) %in% sherman.samp,]
+
 
 ##############################
 ### TEST GROWTH MODELS WITH SUBSET DATASET
 d <- d[!is.na(d$growth),]
-#d <- d[sample(1:nrow(d), 5000),]
+d <- d[d$Growth.Include==T,]
+d <- d[sample(1:nrow(d), 5000),]
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
 d <- droplevels(d)
 
@@ -350,10 +361,11 @@ plot(mod)
 
 
 ### Use original 'rjags' commands:
-jm <- jags.model("growth_3level_trait.bug", data=data, n.chains=1, n.adapt=n.adapt)
+jm <- jags.model("growth_3level_trait.bug", data=data, n.chains=3, n.adapt=1000)
 update(jm, n.iter = n.update)
 params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","tau")
 coda.results <- coda.samples(jm, variable.names=params, n.iter=n.iter, n.thin = 5)
+
 
 plot(coda.results, ask=T)
 gelman.diag(coda.results)
