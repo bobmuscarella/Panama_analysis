@@ -64,7 +64,7 @@ z.score <- function (data) {
 
 ## Log-transform coefficients
 tdata$log.nci <- log(tdata$nci)
-tdata$log.tnci <- log(tdata$nci)
+tdata$log.tnci <- log(tdata$tnci)
 tdata$log.dbh <- log(tdata$dbh)
 
 # ## *CANCEL* Standardize coefficients
