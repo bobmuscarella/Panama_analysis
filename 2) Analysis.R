@@ -37,7 +37,8 @@ tdata$Growth.Include[tdata$palm==F & !is.na(tdata$growth)] <- T
 ###############
 ####  3) WHAT TO DO ABOUT NULL SPECIES CODES (MULTIPLE SPECIES)?
 # - For now, remove them
-tdata <- tdata[tdata$spcode != 'NULL',]
+# tdata <- tdata[tdata$spcode != 'NULL',]
+# UPDATE: These are actually only 1 species (see issues).
 
 ###############
 ####  4) How to deal with missing trait data when doing trait NCI?
