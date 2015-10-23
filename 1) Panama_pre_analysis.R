@@ -7,13 +7,13 @@ library(reshape)
 ############################################
 
 ### BCI ###
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/bci")
-# bci4 <- read.csv("BCI_census4.csv")
-# bci5 <- read.csv("BCI_census5.csv")
-# save(bci4, file='bci4.RDA')
-# save(bci5, file='bci5.RDA')
-load('bci4.RDA')
-load('bci5.RDA')
+setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+# bci4 <- read.csv("bci/BCI_census4.csv")
+# bci5 <- read.csv("bci/BCI_census5.csv")
+# save(bci4, file='bci/bci4.RDA')
+# save(bci5, file='bci/bci5.RDA')
+load('bci/bci4.RDA')
+load('bci/bci5.RDA')
 
 bci4$Date <- as.Date(bci4$Date, format='%m/%d/%y')
 bci5$Date <- as.Date(bci5$Date, format='%m/%d/%y')
@@ -70,13 +70,19 @@ bci4$growth <- ((bci4$dbhFinal - bci4$dbhStart)/bci4$days) * 365
 
 bci <- bci4
 
-spcodes <- read.csv("spcodes.csv")
+spcodes <- read.csv("bci/spcodes.csv")
 bci$spcode <- spcodes$spcode[match(bci$Latin, paste(spcodes$Genus, spcodes$SpeciesName))]
-bci$Latin <- NULL
 
+##################################################
+# WHY ARE THERE MULTIPLE SPECIES WITH NULL SPCODE?
+head(bci)
+table(bci$Latin[bci$spcode == 'NULL' & bci$Not.edge==1])
+x <- spcodes[spcodes$spcode=='NULL',]
+paste(x$Genus, x$SpeciesName, sep=" ", collapse=', ')
+##################################################
 
-bci <- bci[,c('Tag','spcode','PX','PY','Not.edge','plot', 'census', 'dbhStart', 'growth','survival','days')]
-names(bci) <- c('tag','spcode','x','y','Not.Edge','plot','census','dbh','growth','survival','days')
+bci <- bci[,c('Tag','Latin','spcode','PX','PY','Not.edge','plot', 'census', 'dbhStart', 'growth','survival','days')]
+names(bci) <- c('tag','latin','spcode','x','y','Not.Edge','plot','census','dbh','growth','survival','days')
 bci$id <- rownames(bci)
 
 bci <- bci[!is.na(bci$survival),]
@@ -85,22 +91,20 @@ bci <- bci[!is.na(bci$y),]
 bci$tag <- NULL
 bci$nci <- NA
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/bci")
-# save(bci, file='bci_preNCI.RDA')
-load(file='bci_preNCI.RDA')
+# save(bci, file='bci/bci_preNCI.RDA')
+# save(bci, file='bci/bci_preNCI_10.23.15.RDA')
+load(file='bci/bci_preNCI_10.23.15.RDA')
 head(bci)
 
 
 #######################
 ### ADD OTHER PANAMA PLOTS ###
 #######################
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/cocoli")
-coc <- read.csv("cocoli.csv")
-head(coc)
+coc <- read.csv("cocoli/cocoli.csv")
+cocsp <- read.table("cocoli/cocolisp.txt", header=T)
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/sherman")
-she <- read.csv("sherman.csv")
-head(she)
+she <- read.csv("sherman/sherman.csv")
+shesp <- read.table("sherman/shermansp.txt", header=T)
 
 # plot(she$x, she$y, xlim=c(0,450), ylim=c(0,450), pch=16, cex=.2)
 she$Not.Edge <- point.in.polygon(she$x, she$y, c(20,120,120,220,220,160,160,20), c(20,20,60,60,320,320,120,120))
@@ -162,8 +166,8 @@ head(tmp)
 
 
 # Clean up
-tmp <- tmp[,c("tag","spcode","x","y",'dbh1','dbh2',"Not.Edge","plot","grow12","grow23","survive12","survive23","int12","int23")]
-head(tmp)
+tmp <- tmp[,c("tag","spcode","x","y",'dbh1','dbh2',"Not.Edge","plot",
+						"grow12","grow23","survive12","survive23","int12","int23")]
 
 tmp2 <- reshape(tmp, varying=c(list(5:6), list(9:10), list(11:12), list(13:14)), direction='long')
 tmp2 <- tmp2[order(tmp2$tag),]
@@ -177,13 +181,18 @@ tdata$nci <- NA
 
 tdata <- tdata[ ! is.na(tdata$dbh),]
 
-head(tdata)
+tdata$latin[tdata$plot=='cocoli'] <- paste(cocsp$genus, cocsp$species)[match(tdata$spcode, cocsp$spcode)][tdata$plot=='cocoli']
+tdata$latin[tdata$plot=='sherman'] <- paste(shesp$genus, shesp$species)[match(tdata$spcode, shesp$spcode)][tdata$plot=='sherman']
+
+tdata <- tdata[,c("latin","spcode","x","y","Not.Edge","plot","census","dbh","growth","survival","days","id","nci")]
 
 tdata <- rbind(tdata, bci)
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-# save(tdata, file='panama_preNCI.RDA')
+tdata <- tdata[tdata$dbh != 0 , ]
 
+# save(tdata, file='panama_preNCI.RDA')
+# save(tdata, file='panama_preNCI_10.23.15.RDA')
+load('panama_preNCI_10.23.15.RDA')
 
 ### RUN THIS ... (POSSIBLY  ON OTHER MACHINE, TAKES OVERNIGHT)
 Neigh.Fun <- function(i){ # a function to calculate trait NCI for the stem in row i
@@ -203,115 +212,96 @@ Neigh.Fun <- function(i){ # a function to calculate trait NCI for the stem in ro
 
 tdata$nci <- unlist(lapply(1:nrow(tdata), Neigh.Fun))
 # save(tdata, file='panama_NCI.RDA')
+# save(tdata, file='panama_NCI_10.23.15.RDA')
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-load('panama_NCI.RDA')
+# load('panama_NCI.RDA')
+load('panama_NCI_10.23.15.RDA')
 
 
 ##################################
 ### CHUNK 2 : ATTACH LFDP DATA ####
 ##################################
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-load("panama_NCI.RDA")
+load("panama_NCI_10.23.15.RDA")
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/lfdp")
-load("lfdp.RDA")
-head(luq)
+luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
+load("lfdp/lfdp.RDA")
+luq$latin <- luqsp$latin[match(luq$SPECIES, luqsp$spcode)]
+luq <- as.data.frame(cbind(luq$latin, luq[,!colnames(luq) %in% 'latin']))
 
 names(luq) <- names(tdata)
 tdata <- rbind(tdata, luq)
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-# save(tdata, file='alldata_NCI.RDA')
-
-
 ##################################
 ### CHUNK 2b : IDENTIFY PALMS ####
 ##################################
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-load('alldata_NCI.RDA')
+bcisp <- read.csv("bci/spcodes.csv")
+cocsp <- read.table("cocoli/cocolisp.txt", header=T)
+shesp <- read.table("sherman/shermansp.txt", header=T)
+bcisp <- bcisp[,c('spcode','Genus','SpeciesName','Family')]
+names(bcisp) <- names(cocsp)
+luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
+luqsp <- luqsp[,c('spcode','genus','species','family')]
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/bci")
-bci_spcodes <- read.csv("spcodes.csv")
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/cocoli")
-cocoli_spcodes <- read.table("cocolisp.txt", header=T)
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/sherman")
-sherman_spcodes <- read.table("shermansp.txt", header=T)
+bcisp$plot <- 'bci'
+cocsp$plot <- 'cocoli'
+shesp$plot <- 'sherman'
+luqsp$plot <- 'lfdp'
 
-bci_spcodes <- bci_spcodes[,c('spcode','Genus','SpeciesName','Family')]
-names(bci_spcodes) <- names(cocoli_spcodes)
-
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/lfdp")
-lfdp_spcodes <- read.csv("LFDP_spcodes.csv")
-lfdp_spcodes <- lfdp_spcodes[,c('spcode','spcode','spcode','Family')]
-names(lfdp_spcodes) <- names(cocoli_spcodes)
-
-bci_spcodes$plot <- 'bci'
-cocoli_spcodes$plot <- 'cocoli'
-sherman_spcodes$plot <- 'sherman'
-lfdp_spcodes$plot <- 'luq'
-
-spcodes <- rbind(bci_spcodes, cocoli_spcodes, sherman_spcodes, lfdp_spcodes)
+spcodes <- rbind(bcisp, cocsp, shesp, luqsp)
 spcodes$spcodeplot <- paste(spcodes$spcode, spcodes$plot)
-
 spcodeplot <- paste(tdata$spcode, tdata$plot)
 
 tdata$palm <-  spcodeplot %in% spcodes$spcodeplot[spcodes$family == "Arecaceae" ]
 
-is.palm <- tdata$palm
+# save(tdata, file='alldata_NCI.RDA')
+# save(tdata, file='alldata_NCI_notraits_10.23.15.RDA')
+
 ##################################
 ### CHUNK 3 : ATTACH TRAIT DATA ####
 ##################################
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-load('alldata_NCI.RDA')
+#load('alldata_NCI.RDA')
+load('alldata_NCI_notraits_10.23.15.RDA')
 
-tdata$binom <- NA
-tdata$wd <- NA
+### EXCLUDE LFDP DATA FOR NOW... 
+tdata <- tdata[!tdata$plot %in% 'lfdp',]
+tdata <- droplevels(tdata)
 
-head(tdata)
+#######################################################
+#### THIS WAS TO USE THE PUBLIC WD DATA FROM CHAVE 2006
+# wd <- read.csv("traits/ChaveWoodDensity.csv")[,c(1:4)]
+# wd$binom <- tolower(paste(wd$GENUS, wd$SPECIES, sep='_'))
+# tdata$wd <- wd$WSG[match(tdata$binom, wd$binom)]
+#######################################################
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/cocoli")
-splist <- read.table("cocolisp.txt", header=T)
-splist$binom <- tolower(paste(splist$genus, splist$species, sep='_'))
-tdata$binom[tdata$plot=='cocoli'] <- splist$binom[match(tdata$spcode[tdata$plot=='cocoli'], splist$spcode)]
+bci <- read.csv("traits/BCITRAITS_20101220.csv")
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/sherman")
-splist <- read.table("shermansp.txt", header=T)
-splist$binom <- tolower(paste(splist$genus, splist$species, sep='_'))
-tdata$binom[tdata$plot=='sherman'] <- splist$binom[match(tdata$spcode[tdata$plot=='sherman'], splist$spcode)]
+# GET WSG 100C IF AVAILABLE, OTHERWISE WSG 60C AND THEN CHAVE WSG:
+bci$WSG <- ifelse(!is.na(bci$SG100C_AVG), bci$SG100C_AVG, ifelse(!is.na(bci$SG60C_AVG), bci$SG60C_AVG, bci$WSG_CHAVE))
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/bci")
-splist <- read.csv("spcodes.csv", header=T)
-splist$binom <- tolower(paste(splist$Genus, splist$SpeciesName, sep='_'))
-tdata$binom[tdata$plot=='bci'] <- splist$binom[match(tdata$spcode[tdata$plot=='bci'], splist$spcode)]
+# SUBSET TO TRAITS OF PRIMARY INTEREST...
+bci <- bci[,c('SP.', 'WSG','HEIGHT_AVG','SEED_DRY','LEAFAREA_AVI',
+					'LEAFTHCK_AVI','LMALEAF_AVI','LDMC_AVI','AVG_LAMTUF',
+					'RGR_10','RGR_50','RGR_100','MORT_10','MORT_100')]
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA/bci")
-splist <- read.csv("spcodes.csv", header=T)
-splist$binom <- tolower(paste(splist$Genus, splist$SpeciesName, sep='_'))
-tdata$binom[tdata$plot=='bci'] <- splist$binom[match(tdata$spcode[tdata$plot=='bci'], splist$spcode)]
-
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-wd <- read.csv("WoodDensity.csv")[,c(1:4)]
-wd$binom <- tolower(paste(wd$GENUS, wd$SPECIES, sep='_'))
-
-tdata$wd <- wd$WSG[match(tdata$binom, wd$binom)]
-
-setwd("/Users/Bob/Projects/Thesis/DATA/traits")
-luq <- read.csv("Site_Specific_mean_traits.csv", header=T)
-luq <- luq[luq$FOREST=="LUQ",]
-tdata$wd[tdata$plot=='lfdp'] <- luq$WD[match(tdata$spcode[tdata$plot=='lfdp'], luq$SPECIES)]
+### MATCH SP CODES WITH TRAITS..... 
+traits <- bci[match(tdata$spcode, bci$SP.),]
+tdata <- cbind(tdata, traits[,-1])
 
 
-sum(!is.na(tdata$wd))/nrow(tdata) # WD data for ~75% of observations here...
+# setwd("/Users/Bob/Projects/Thesis/DATA/traits")
+# luq <- read.csv("Site_Specific_mean_traits.csv", header=T, row.names=1)
+# luq <- luq[luq$FOREST=="LUQ",]
+# head(luq)
+# tdata$WSG[tdata$plot=='lfdp'] <- luq$WD[match(tdata$spcode[tdata$plot=='lfdp'], luq$SPECIES)]
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-#save(tdata, file='alldata_NCI.RDA')
+sum(!is.na(tdata$WSG))/nrow(tdata) # WD data for ~75% of observations here...
+
+# save(tdata, file='alldata_NCI_Traits_10.23.15.RDA')
 
 
-##################################
-### CHUNK 4 : GET TRAIT NCI 		    ####
-##################################
-
+######################################################
+### CHUNK 4 : GET TRAIT NCI and UNKNOWN TRAIT NCI    ####
+######################################################
 # A function to calculate trait NCI for the stem in row i
 
 Trait.Neigh.Fun <- function(i, trait){ 
@@ -327,7 +317,7 @@ Trait.Neigh.Fun <- function(i, trait){
 
 # If some of the neighboring stems have the same coordinates as focal tree, add a slight offset
 # Changes stems with same coordinates
-	    if(sum(((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2) > 0){ 
+	    if(sum(((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2) > 0){
     		  neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] <- neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.01, 0.01)
 	    }
 # Calculate NCI
@@ -347,53 +337,77 @@ Trait.Neigh.Fun <- function(i, trait){
   }	
 }
 
+Unk.Trait.Neigh.Fun <- function(i, trait){ 
 
-tdata$tnci <- unlist(lapply(1:nrow(tdata), Trait.Neigh.Fun, 'wd'))
+# If stem is not on the edge
+	if(tdata$Not.Edge[i] == 1){
 
-# save(tdata, file='data_10.13.15.RDA')
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-load("data_10.13.15.RDA")
+# Focal stem in row i
+    	foc.tree <- tdata[i,] 
 
-head(tdata)
+# Gets neighboring stems within 20 meters and from the same census year
+    	neighz <- tdata[(1:nrow(tdata))!=i & sqrt((tdata$x - foc.tree$x)^2 + (tdata$y - foc.tree$y)^2) <= 20 & tdata$census == foc.tree$census & tdata$plot == foc.tree$plot & is.na(tdata[,trait]),] 
 
-
-
-
-##################################
-### CHUNK 5 : GET UNKNOWN TRAIT NCI
-##################################
-
-# A function to calculate NCI based only on stems with unknown trait value for the stem in row i
-
-### RUN THIS ... (POSSIBLY  ON OTHER MACHINE, TAKES OVERNIGHT)
-Unk.Trait.Neigh.Fun <- function(i, trait){ # a function to calculate trait NCI for the stem in row i
-  if(tdata$Not.Edge[i] == 1){ #if stem is not on the edge
-		#Focal stem in row i
-    foc.tree <- tdata[i,] 
-    # Gets neighboring stems within 20 meters and from the same census year
-    neighz <- tdata[(1:nrow(tdata))!=i & sqrt((tdata$x - foc.tree$x)^2 + (tdata$y - foc.tree$y)^2) <= 20 & tdata$census == foc.tree$census & tdata$plot == foc.tree$plot,] 
-	# Select only stems with unknown trait data
-	sub.neighz <- neighz[ is.na(neighz[,trait]) ,]
-	# If some of the neighboring stems have the same coordinates as focal tree, add a slight offset
-    if(sum(((sub.neighz$x == foc.tree$x) + (sub.neighz$y == foc.tree$y)) == 2) > 0){
-		# Changes stems with same coordinates
-    	sub.neighz[((sub.neighz$x == foc.tree$x) + (sub.neighz$y == foc.tree$y)) == 2 ,3:4] <- sub.neighz[((sub.neighz$x == foc.tree$x) + (sub.neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.25, 0.25) 
-    }
-	# Calculate NCI using only stems with missing trait information
-	# Gives NCI using DBH^2 and dist^-2'
-    NCI <- sum(na.omit(sub.neighz$dbh^2/((sub.neighz$x - foc.tree$x)^2 + (sub.neighz$y - foc.tree$y)^2))) 
-	NCI
-  }else{
-    NA #For edge stems   
+# If some of the neighboring stems have the same coordinates as focal tree, add a slight offset
+# Changes stems with same coordinates
+	    if(sum(((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2) > 0){
+    		  neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] <- neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.01, 0.01)
+	    }
+# Calculate NCI
+# Gives NCI using DBH^2 and dist^-2'
+	Unk.Trait.NCI <- sum(na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)))
+	Unk.Trait.NCI
+# For edge stems   
+  } else {
+  	NA
   }	
 }
 
+### Log transform skewed traits *before* calculating tNCI...
+# t <- 1
+# par(mfrow=c(2,2))
+# hist(bci[,names(traits)[-1][t]])
+# hist(log(bci[,names(traits)[-1][t]]))
+# plot(1,1,col=NA, axes=F)
+# text(1,1,names(traits)[-1][t])
 
-tdata$u.t.nci <- unlist(lapply(1:nrow(tdata), Unk.Trait.Neigh.Fun, 'wd'))
+logtraits <- c('SEED_DRY','LEAFAREA_AVI','LEAFTHCK_AVI',
+					'LMALEAF_AVI','LDMC_AVI','AVG_LAMTUF','RGR_10',
+					'RGR_50','RGR_100','MORT_10','MORT_100')
 
+for(i in 1:length(logtraits)) {
+	newname <- paste('log', logtraits[i], sep='.')
+	tdata[,newname] <- log(tdata[,logtraits[i]])
+}
 
-# save(tdata, file="X")
-# setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-# load("X")
+# Get tNCI for all traits of interest (biomass NCI weighted by absolute trait difference)
+traits <- c('WSG','HEIGHT_AVG','log.SEED_DRY','log.LMALEAF_AVI','log.LDMC_AVI')
+
+# traits <- c('WSG','HEIGHT_AVG','log.SEED_DRY','log.LEAFAREA_AVI','log.LEAFTHCK_AVI',
+#					'log.LMALEAF_AVI','log.LDMC_AVI','log.AVG_LAMTUF','log.RGR_10',
+#					'log.RGR_50','log.RGR_100','log.MORT_10','log.MORT_100')
+
+### I USED THIS TEMPORARY SAVE TO RUN THE TRAIT NCI AT THE SAME TIME AS REGULAR NCI...
+###save(tdata, file='panama_preNCI_traits_10.23.15.RDA')
+
+# IN PRACTICE, I WILL SPLIT THIS UP INTO DIFFERENT R SESSIONS:
+# Get tNCI for all traits of interest
+for(1:length(traits)){
+	trait <- traits[i]
+	newname <- paste('tnci', traits[i], sep='.')
+	tdata[,newname] <- unlist(lapply(1:nrow(tdata), Trait.Neigh.Fun, trait))
+}
+
+# Get uNCI for all traits of interest
+for(1:length(traits)){
+	trait <- traits[i]
+	newname <- paste('unci', traits[i], sep='.')
+	tdata[,newname] <- unlist(lapply(1:nrow(tdata), Unk.Trait.Neigh.Fun, trait))
+}
+
+# save(tdata, file='data_10.23.15.RDA')
+# load("data_10.13.15.RDA")
+
+head(tdata)
 
 
