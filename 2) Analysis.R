@@ -70,18 +70,19 @@ tdata$log.nci <- log(tdata$nci)
 tdata$log.tnci <- log(tdata$tnci)
 tdata$log.dbh <- log(tdata$dbh)
 
-# ## *CANCEL* Standardize coefficients
-# tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
-# tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, z.score))
-# tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, z.score))
-# tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, center=F))
+## Standardize coefficients within plots
+tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
+tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, z.score))
+tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, z.score))
+tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, z.score))
+tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, center=F))
 
 ## Center coefficients within plots (without scaling)
-tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
-tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, scale, scale=F))
-tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, scale, scale=F))
-tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
-tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
+# tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
+# tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, scale, scale=F))
+# tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, scale, scale=F))
+# tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
+# tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
 
 d <- tdata
 rownames(d) <- NULL
@@ -91,28 +92,22 @@ head(d)
 d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))
 
 
-### SUBSAMPLE BCI AND SHERMAN DATA TO MATCH COCOLI SAMPLE SIZE
-bci.samp <- sample(which(d$plot=='bci'), sum(d$plot=='cocoli'))
-d <- d[d$plot != 'bci' | rownames(d) %in% bci.samp,]
-rownames(d) <- NULL
-
-sherman.samp <- sample(which(d$plot=='sherman'), sum(d$plot=='cocoli'))
-d <- d[d$plot != 'sherman' | rownames(d) %in% sherman.samp,]
-
-
 ##############################
 ### TEST GROWTH MODELS WITH SUBSET DATASET
 d <- d[!is.na(d$growth),]
-d <- d[d$Growth.Include==T,]
-d <- d[sample(1:nrow(d), 5000),]
+#d <- d[d$Growth.Include %in% T,]
+#d <- d[sample(1:nrow(d), 5000),]
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
-d <- droplevels(d)
+
+#d <- d[d$plot=='bci',]
 
 d <- d[! is.na (d$wd),]  	# species with NA for trait value give problems when using traits...
+
+d <- d[abs(d$growth) < sd(d$growth, na.rm=T)*5,]
+
 d <- droplevels(d)
 
-head(d)
-unique(d$plot)
+wd.z <- z.score(tapply(d$wd, d$speciesxplot, mean))
 
 d$indiv <- as.numeric(as.factor(d$id))
 
@@ -262,60 +257,61 @@ mod <- jagsUI::jags(data, parameters.to.save=params, model.file="growth_3level_n
 sink("growth_3level_trait.bug")
 
 cat(" model {
-
-	for( i in 1:ntree ) {
-
-		growth[i] ~ dnorm(mu[i], tau[1])
-
-		mu[i] <-  exp(z[i])
-
-		z[i]  <-  beta.1[species[i]] 									# mean performance
-					+ beta.2[species[i]] * (nci[i]) 				# biomass only nci
-					+ beta.3[species[i]] * (nci.t[i]) 				# trait-based nci
-					+ beta.4[species[i]] * (dbh[i])				# size-specific effect
-#					+ beta.5[species[i]] * (nci.u.t[i])			# to account for species with unknown trait values...
-					+ indiv.effect[indiv[i]]							# to account for repeat sample of individuals
-		}
-
-	for( j in 1:nspecies ) {
-		beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[2])		# species-specific average growth
-		beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[3])		# speces-specific crowding effect
-		beta.3[j] ~ dnorm(mu.beta[3], tau[4])												# species-specific triat-hood effect
-		beta.4[j] ~ dnorm(mu.beta[4], tau[5])												# species-specific size effect
-#		beta.5[j] ~ dnorm(mu.beta[5], tau[X])												# sp-specific effect of unk trait neighbs
-		}
-
-	for( k in 1:nplot ) {
-		beta.t.1[k] ~ dnorm(beta.t[1], tau[6])			# plot-specific trait effect on average growth
-		beta.t.2[k] ~ dnorm(beta.t[2], tau[7])			# plot-specific trait effect on sensitivity to crowding
-		}
-		
-	for( i.a in 1:nindiv ) {
-		indiv.effect[i.a] ~ dnorm(0, tau[8])
-		}
-
-	beta.t[1] ~ dnorm(0, 1E-4)
-	beta.t[2] ~ dnorm(0, 1E-4)
-
-	mu.beta[1] ~ dnorm(0, 1E-4)
-	mu.beta[2] ~ dnorm(0, 1E-4)
-	mu.beta[3] ~ dnorm(0, 1E-4)
-	mu.beta[4] ~ dnorm(0, 1E-4)
-
-	tau[1] ~ dgamma(1E-3, 1E-3)
-	tau[2] ~ dgamma(1E-3, 1E-3)	
-	tau[3] ~ dgamma(1E-3, 1E-3)
-	tau[4] ~ dgamma(1E-3, 1E-3)	
-	tau[5] ~ dgamma(1E-3, 1E-3)
-	tau[6] ~ dgamma(1E-3, 1E-3)	
-	tau[7] ~ dgamma(1E-3, 1E-3)	
-	tau[8] ~ dgamma(1E-3, 1E-3)	
-#	tau[9] ~ dgamma(1E-3, 1E-3)	
-
-	sigma <- 1 / sqrt(tau)
-}
-", fill=TRUE)
+    
+    for( i in 1:ntree ) {
+    
+    growth[i] ~ dnorm(mu[i], tau[1])
+    
+    mu[i] <-  exp(z[i])
+    
+    z[i]  <-  beta.1[species[i]] 									# mean performance
+    + beta.2[species[i]] * (nci[i]) 				# biomass only nci
+    + beta.3[species[i]] * (nci.t[i]) 				# trait-based nci
+    + beta.4[species[i]] * (dbh[i])				# size-specific effect
+    #					+ beta.5[species[i]] * (nci.u.t[i])			# to account for species with unknown trait values...
+    + indiv.effect[indiv[i]]							# to account for repeat sample of individuals
+    }
+    
+    for( j in 1:nspecies ) {
+    beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[2])		# species-specific average growth
+    beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[3])		# speces-specific crowding effect
+    beta.3[j] ~ dnorm(mu.beta[3], tau[4])												# species-specific triat-hood effect
+    beta.4[j] ~ dnorm(mu.beta[4], tau[5])												# species-specific size effect
+    #		beta.5[j] ~ dnorm(mu.beta[5], tau[X])												# sp-specific effect of unk trait neighbs
+    }
+    
+    for( k in 1:nplot ) {
+    beta.t.1[k] ~ dnorm(beta.t[1], tau[6])			# plot-specific trait effect on average growth
+    beta.t.2[k] ~ dnorm(beta.t[2], tau[7])			# plot-specific trait effect on sensitivity to crowding
+    }
+    
+    for( i.a in 1:nindiv ) {
+    indiv.effect[i.a] ~ dnorm(0, tau[8])
+    }
+    
+    beta.t[1] ~ dnorm(0, 1E-4)
+    beta.t[2] ~ dnorm(0, 1E-4)
+    
+    mu.beta[1] ~ dnorm(0, 1E-4)
+    mu.beta[2] ~ dnorm(0, 1E-4)
+    mu.beta[3] ~ dnorm(0, 1E-4)
+    mu.beta[4] ~ dnorm(0, 1E-4)
+    
+    tau[1] ~ dgamma(1E-3, 1E-3)
+    tau[2] ~ dgamma(1E-3, 1E-3)	
+    tau[3] ~ dgamma(1E-3, 1E-3)
+    tau[4] ~ dgamma(1E-3, 1E-3)	
+    tau[5] ~ dgamma(1E-3, 1E-3)
+    tau[6] ~ dgamma(1E-3, 1E-3)	
+    tau[7] ~ dgamma(1E-3, 1E-3)	
+    tau[8] ~ dgamma(1E-3, 1E-3)	
+    #	tau[9] ~ dgamma(1E-3, 1E-3)	
+    
+    sigma <- 1 / sqrt(tau)
+    }
+    ", fill=TRUE)
 sink()
+
 
 #### Specify the model
 
@@ -328,53 +324,58 @@ inits <- function (){
 	}
 
 ### USE jagsUI:
-params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","tau")
+params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","sigma")
 
 setwd("K:/Bob/Panama/MODELS")
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 
-mod <- jagsUI::jags(data, inits, params, 
-                    "growth_3level_trait.bug", 
-                    n.chains=3, n.adapt=1000, n.iter=5000, 
-                    n.burnin=1000, n.thin=5, parallel=TRUE)
 
-mod
+fullmod <- jagsUI::jags(data, inits, params, 
+                    "growth_3level_trait.bug", 
+                    n.chains=3, n.adapt=5000, n.iter=25000, 
+                    n.burnin=10000, n.thin=5, parallel=TRUE)
+
+fullmod
 
 paste("Start at:", Sys.time())
-mod <- update(mod, n.iter=50000)
+update(fullmod, n.iter=50000)
 paste("Finish at:", Sys.time())
 
 
+str(fullmod$q50$beta.t.1)
+
+
+unlist(fullmod$q50)
+
+
+labs <- names(unlist(bcimod$q50))
+plot(unlist(bcimod$q50)[-13], pch=21, bg=1, ylim=c(-3,3), axes=F, xlab='', ylab='effect size')
+axis(2)
+axis(1, seq(1.1,12.1,1), labels=labs[-13], las=2)
+points(seq(1.1,12.1,1),unlist(cocmod$q50)[-13], pch=21, bg=2)
+points(seq(1.2,12.2,1),unlist(shermod$q50)[-13], pch=21, bg=3)
+segments(1:12, unlist(bcimod$q2.5)[-13], 1:12, unlist(bcimod$q97.5)[-13], col=1)
+segments(seq(1.1,12.1,1), unlist(cocmod$q2.5)[-13], seq(1.1,12.1,1), unlist(cocmod$q97.5)[-13], col=2)
+segments(seq(1.2,12.2,1), unlist(shermod$q2.5)[-13], seq(1.2,12.2,1), unlist(shermod$q97.5)[-13], col=3)
+abline(h=0, lty=2)
+
+
+labs <- names(unlist(fullmod$q50))[-21]
+pch <- ifelse(unlist(fullmod$overlap0)==T, 1, 16)
+plot(unlist(fullmod$q50)[-21], pch=pch, ylim=c(-3,3), axes=F, xlab='', ylab='effect size')
+axis(2)
+axis(1, seq(1,20,1), labels=labs, las=2)
+segments(seq(1,20,1), unlist(fullmod$q2.5)[-21], seq(1,20,1), unlist(fullmod$q97.5)[-21])
+abline(h=0, lty=2)
 
 
 
 
 
-# Auto Run
-mod <- jagsUI::autojags(data, inits, params, 
-										"growth_3level_trait.bug", 
-										n.chains=2, n.adapt=1000, 
-										parallel=T, n.thin=5)
 
 
-jagsUI::traceplot(mod)
-plot(mod)
 
 
-### Use original 'rjags' commands:
-jm <- jags.model("growth_3level_trait.bug", data=data, n.chains=3, n.adapt=1000)
-update(jm, n.iter = n.update)
-params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","tau")
-coda.results <- coda.samples(jm, variable.names=params, n.iter=n.iter, n.thin = 5)
-
-
-plot(coda.results, ask=T)
-gelman.diag(coda.results)
-res <- summary(coda.results)
-
-plot(data$trait, res[[2]][paste('beta.2[',1:nspecies,']',sep=''),3], bg=data$plot, pch=21, ylim=c(-.1,.1))
-segments(data$trait, res[[2]][paste('beta.2[',1:nspecies,']',sep=''),1], data$trait, res[[2]][paste('beta.2[',1:nspecies,']',sep=''),5], col= data$plot, lwd=2)
-abline(h=0)
 
 ############################################################
 ############################################################
