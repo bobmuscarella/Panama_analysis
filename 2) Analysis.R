@@ -1,10 +1,8 @@
-library(rjags)
 library(jagsUI)
 
-#########################################
-####  START HERE WITH PROCESSED DATA ####
-#########################################
-
+#######################################
+###  START HERE WITH PROCESSED DATA ###
+#######################################
 # if running on the PC:
 setwd("K:/Bob/Panama/DATA")
 
@@ -14,308 +12,182 @@ setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 # load("alldata_NCI.RDA")
 load("data_10.13.15.RDA")
 
-# Remove edge, and species with problematic 
-tdata <- tdata[tdata$Not.Edge==1 & !is.na(tdata$tnci) & tdata$tnci>0,]
+###############################
+### CURRENT CONSIDERATIONS: ###
+###############################
+### Remove LFDP data... (for now)
+tdata <- tdata[tdata$plot != 'lfdp',]
 
-################################################################
-####  CURRENT CONSIDERATIONS: 
-################################################################
+### Remove palms (doing it this way to keep them for survival...)
+tdata$growth[tdata$palm==T] <- NA
 
-###############
-#### 1) WHAT TO DO ABOUT GROWTH OUTLIERS?
-## - For now, just leave them and see if it gives problems with convergence...
-## - Alternatively, select a standard deviation and say it is probably measurement error?
-# tdata$Growth.Include <- abs(tdata$growth) < (sd(tdata$growth, na.rm=T) * 15)
-tdata$Growth.Include[is.na(tdata$growth)] <- F
-
-###############
-####  2) WHAT TO DO ABOUT PALMS FOR GROWTH ANALYSIS?
-# - For now, remove them
-tdata$Growth.Include[tdata$palm==T] <- F
-tdata$Growth.Include[tdata$palm==F & !is.na(tdata$growth)] <- T
-
-###############
-####  3) WHAT TO DO ABOUT NULL SPECIES CODES (MULTIPLE SPECIES)?
-# - For now, remove them
-# tdata <- tdata[tdata$spcode != 'NULL',]
-# UPDATE: These are actually only 1 species (see issues).
-
-###############
-####  4) How to deal with missing trait data when doing trait NCI?
-# See Lasky etal 2014 PNAS
-
-
-################################################################
-####  MOVING ON...
-################################################################
-
-#### REMOVE EDGE TREES AND SOME OTHERWISE NA TREES
+#################
+### DATA PREP ###
+#################
+### Remove edge trees and otherwise NA trees
 tdata <- tdata[tdata$Not.Edge == 1,] 
-tdata <- tdata[!is.na(tdata$nci),]
+tdata <- tdata[!is.na(tdata$nci) | tdata$nci==0,]
 tdata <- tdata[!is.na(tdata$survival),]
 tdata <- droplevels(tdata)
 
-#### <<<REMOVE LFDP FOR NOW>>>
-tdata <- tdata[tdata$plot != 'lfdp',]
+### What to do about growth outliers? Remove > 5 sd ...
+tdata <- tdata[abs(tdata$growth) < sd(tdata$growth, na.rm=T) * 5,]
 
-#### Z-TRANSFORM DATA
+### Z-TRANSFORM DATA
 z.score <- function (data) {
 	xm<- mean (data, na.rm=TRUE)
 	xsd<-sd(data, na.rm=TRUE)
 	xtrans<-(data-xm)/(2*xsd)
 }
 
-## Log-transform coefficients
+### Log-transform coefficients
 tdata$log.nci <- log(tdata$nci)
 tdata$log.tnci <- log(tdata$tnci)
+tdata$log.unci <- log(tdata$unci)
 tdata$log.dbh <- log(tdata$dbh)
 
-## Standardize coefficients within plots
+# **** NEED TO ADJUST THIS TO STANDARDIZE FOR ALL TRAITS... **** #
+### Standardize coefficients within plots
 tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
 tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, z.score))
 tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, z.score))
 tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, z.score))
 tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, center=F))
 
-## Center coefficients within plots (without scaling)
+### Center coefficients within plots (without scaling)
 # tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
 # tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, scale, scale=F))
 # tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, scale, scale=F))
 # tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
 # tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
 
+
+#################################
+#### Prepare data for input  ####
+#################################
 d <- tdata
 rownames(d) <- NULL
-head(d)
+d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))	# Make a speciesxplot column for correct indexing...
+d <- d[!is.na(d$growth),]					# Remove growth NA
+d <- d[order(d$plot, d$spcode, d$id, d$census),]		# Order for correct indexing
+d <- d[! is.na (d$wd),]  					# Remove species with NA for trait value
+d <- droplevels(d)						# Drop factors for correct indexing
+d$indiv <- as.numeric(as.factor(d$id))				# Create an individual ID
 
-### Generate a species-plot column for correct indexing of model...
-d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))
+# **** THIS PART NEEDS TO BE ERROR CHECKED **** #
+traitname <- 'WSG'
+traitdata <- z.score(tapply(d[,traitname], d$speciesxplot, mean))	# Get species scaled trait values
+log.nci.z <- d[,paste('log.nci.', traitname, sep='')], d$speciesxplot, mean))	# Get species scaled trait values
+log.tnci.z <- d[,paste('log.tnci.', traitname, sep='')], d$speciesxplot, mean))	# Get species scaled trait values
+log.unci.z <- d[,paste('log.unci.', traitname, sep='')], d$speciesxplot, mean))	# Get species scaled trait values
+
+#################################
+#### Organize the input data ####
+#################################
+data = list (
+	ntree = nrow(d),
+	nindiv = length(unique(d$id)),
+	nspecies = length(levels(d$speciesxplot)),
+	nplot = length(levels(as.factor(d$plot))),
+	growth = as.numeric(d$growth.z),
+	nci = as.numeric(log.nci.z),
+	tnci = as.numeric(log.tnci.z),
+	unci = as.numeric(log.unci.z),
+	dbh = as.numeric(d$log.dbh.z),
+	trait = traitdata,
+	indiv = d$indiv,
+	species = as.numeric(d$speciesxplot),
+	plot = as.numeric(tapply(as.numeric(as.factor(d$plot)), d$speciesxplot, mean))
+	)
 
 
 ##############################
-### TEST GROWTH MODELS WITH SUBSET DATASET
-d <- d[!is.na(d$growth),]
-#d <- d[d$Growth.Include %in% T,]
-#d <- d[sample(1:nrow(d), 5000),]
-d <- d[order(d$plot, d$spcode, d$id, d$census),]
-
-#d <- d[d$plot=='bci',]
-
-d <- d[! is.na (d$wd),]  	# species with NA for trait value give problems when using traits...
-
-d <- d[abs(d$growth) < sd(d$growth, na.rm=T)*5,]
-
-d <- droplevels(d)
-
-wd.z <- z.score(tapply(d$wd, d$speciesxplot, mean))
-
-d$indiv <- as.numeric(as.factor(d$id))
-
+#### Write the model file ####
 ##############################
-
-			data = list (
-					ntree = nrow(d),
-					nindiv = length(unique(d$id)),
-					nspecies = length(levels(d$speciesxplot)),
-					nplot = length(levels(as.factor(d$plot))),
-					growth = as.numeric(d$growth.z),
-					nci = as.numeric(d$log.nci.z),
-					nci.t = as.numeric(d$log.tnci.z),
-#					nci.u.t = as.numeric(d$log.utnci.z),
-					dbh = as.numeric(d$log.dbh.z),
-					trait = as.numeric(tapply(d$wd, d$speciesxplot, mean)),
-					indiv = d$indiv,
-					species = as.numeric(d$speciesxplot),
-					plot = as.numeric(tapply(as.numeric(as.factor(d$plot)), d$speciesxplot, mean))
-				)
-
-#### SET MODEL RUN LENGTHS
 setwd("K:/Bob/Panama/MODELS")
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 
-
-#### Build the model
-sink("growth_simple.bug")
-cat(" model{
-	for( i in 1:ntree ) {
-		growth[i] ~ dnorm(mu[i], tau[4])
-		mu[i] <-  exp(z[i])
-		z[i]  <-  beta.1[species[i]] + (beta.2[species[i]] * dbh[i]) + (beta.3[species[i]] * nci[i])
-		}
-
-	for( j in 1:nspecies ) {
-		beta.1[j] ~ dnorm(mu.beta[1], tau[1])
-		beta.2[j] ~ dnorm(mu.beta[2], tau[2])
-		beta.3[j] ~ dnorm(mu.beta[3], tau[3])
-		}
-
-	mu.beta[1] ~ dnorm(0, 1E-4)
-	mu.beta[2] ~ dnorm(0, 1E-4)
-	mu.beta[3] ~ dnorm(0, 1E-4)
-
-	tau[1] ~ dgamma(1E-3, 1E-3)
-	tau[2] ~ dgamma(1E-3, 1E-3)	
-	tau[3] ~ dgamma(1E-3, 1E-3)
-	tau[4] ~ dgamma(1E-3, 1E-3)	
-
-	sigma <- 1 / sqrt(tau)
-}
-
-",fill=TRUE)
-sink()
-
-
-#### Specify the model
-inits <- function (){
-	list(
-	mu.beta = rnorm(3),
-	tau = rgamma(4, 1E-3, 1E-3))
-#	tau = rep(1E-3, 4))
-	}
-
-start <- list(inits(), inits(), inits())
-
-
-params <- c("beta.1","beta.2","beta.3","mu.beta","tau")
-setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
-mod <- jagsUI::jags(data, parameters.to.save=params, model.file="growth_simple.bug", n.iter=1000, n.chains=2, parallel=T)
-
-
-### Initiate the model
-n.adapt=100
-n.update=1000
-n.iter=1000
-
-jm <- jags.model("growth_simple.bug", inits=inits, data=data, n.chains=3, n.adapt=n.adapt)
-
-
-
-
-
-
-################################
-#### Build the model
-sink("growth_3level_notrait.bug")
-
-cat(" model {
-
-	for( i in 1:ntree ) {
-		growth[i] ~ dnorm(mu[i], tau[7])
-		mu[i] <-  exp(z[i])
-		z[i]  <-  beta.1[species[i]] + (beta.2[species[i]] * nci[i]) + (beta.3[species[i]] * dbh[i])
-		}
-
-	for( j in 1:nspecies ) {
-		beta.1[j] ~ dnorm(mu.beta.1[plot[j]], tau[1])	
-		beta.2[j] ~ dnorm(mu.beta.2[plot[j]], tau[2])
-		beta.3[j] ~ dnorm(mu.beta.3[plot[j]], tau[3])
-		}
-
-	for( k in 1:nplot ) {
-		mu.beta.1[k] ~ dnorm(mu.beta[1], tau[4])
-		mu.beta.2[k] ~ dnorm(mu.beta[2], tau[5])
-		mu.beta.3[k] ~ dnorm(mu.beta[3], tau[6])
-		}
-
-	mu.beta[1] ~ dnorm(0, 1E-4)
-	mu.beta[2] ~ dnorm(0, 1E-4)
-	mu.beta[3] ~ dnorm(0, 1E-4)
-
-	tau[1] ~ dgamma(1E-3, 1E-3)
-	tau[2] ~ dgamma(1E-3, 1E-3)	
-	tau[3] ~ dgamma(1E-3, 1E-3)
-	tau[4] ~ dgamma(1E-3, 1E-3)	
-	tau[5] ~ dgamma(1E-3, 1E-3)
-	tau[6] ~ dgamma(1E-3, 1E-3)	
-	tau[7] ~ dgamma(1E-3, 1E-3)	
-
-	sigma <- 1 / sqrt(tau)
-}
-",fill=TRUE)
-sink()
-
-#### Specify the model
-inits <- function (){
-	list(
-	mu.beta = rnorm(3),
-	tau = rgamma(7, 1E-3, 1E-3) + 1E-10)
-	}
-
-start <- list(inits(), inits())
-
-
-params <- c("beta.1","beta.2","beta.3","mu.beta","tau")
-setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
-mod <- jagsUI::jags(data, parameters.to.save=params, model.file="growth_3level_notrait.bug", n.iter=1000, n.chains=2, parallel=T, inits=start)
-
-
-
-
-
-################################
-#### Build the model
-sink("growth_3level_trait.bug")
-
+sink("growth_3level_NCI_TNCI_UNCI_NCIXDBH.bug")
 cat(" model {
     
     for( i in 1:ntree ) {
     
-    growth[i] ~ dnorm(mu[i], tau[1])
+	growth[i] ~ dnorm(mu[i], tau[1])
     
-    mu[i] <-  exp(z[i])
+	mu[i] <- exp(z[i])
     
-    z[i]  <-  beta.1[species[i]] 									# mean performance
-    + beta.2[species[i]] * (nci[i]) 				# biomass only nci
-    + beta.3[species[i]] * (nci.t[i]) 				# trait-based nci
-    + beta.4[species[i]] * (dbh[i])				# size-specific effect
-    #					+ beta.5[species[i]] * (nci.u.t[i])			# to account for species with unknown trait values...
-    + indiv.effect[indiv[i]]							# to account for repeat sample of individuals
+	z[i] <- indiv.effect[indiv[i]]			# to account for repeat sample of individuals
+	+ beta.1[species[i]] 				# grand mean of performance
+	+ beta.2[species[i]] * (nci[i]) 		# biomass nci
+	+ beta.3[species[i]] * (tnci[i]) 		# absolute trait difference nci
+	+ beta.4[species[i]] * (dbh[i])			# size-specific effect
+#	+ beta.5[species[i]] * (unci[i])		# biomass nci of neighbors with unknown traits
+#	+ beta.6[species[i]] * (nci[i]) * (dbh[i])	# interaction between size and crowding
     }
     
     for( j in 1:nspecies ) {
-    beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[2])		# species-specific average growth
-    beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[3])		# speces-specific crowding effect
-    beta.3[j] ~ dnorm(mu.beta[3], tau[4])												# species-specific triat-hood effect
-    beta.4[j] ~ dnorm(mu.beta[4], tau[5])												# species-specific size effect
-    #		beta.5[j] ~ dnorm(mu.beta[5], tau[X])												# sp-specific effect of unk trait neighbs
+	beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[2])	# species-specific average growth
+	beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[3])	# speces-specific crowding effect
+?	beta.3[j] ~ dnorm(mu.beta[3], tau[4])					# species-specific triat-hood effect
+?	beta.4[j] ~ dnorm(mu.beta[4], tau[5])					# species-specific size effect
+#?	beta.5[j] ~ dnorm(mu.beta[5], tau[X])					# sp-specific effect of unk trait neighbs
+#?	beta.6[j] ~ dnorm(mu.beta[6], tau[X])					# sp-specific 
+
+#	beta.3[j] ~ dnorm(beta.t.3[plot[j]], tau[4])				# plot x species-specific triat-hood effect
+#	beta.4[j] ~ dnorm(beta.t.4[plot[j]], tau[5])				# plot x species-specific size effect
+#	beta.5[j] ~ dnorm(beta.t.5[plot[j]], tau[X])				# plot x species-specific effect of unk trait neighbs
+#	beta.6[j] ~ dnorm(beta.t.6[plot[j]], tau[X])				# plot x species-specific effect of dbh * nci interaction
     }
     
     for( k in 1:nplot ) {
-    beta.t.1[k] ~ dnorm(beta.t[1], tau[6])			# plot-specific trait effect on average growth
-    beta.t.2[k] ~ dnorm(beta.t[2], tau[7])			# plot-specific trait effect on sensitivity to crowding
+	beta.t.1[k] ~ dnorm(beta.t[1], tau[6])		# plot-specific trait effect on average growth
+	beta.t.2[k] ~ dnorm(beta.t[2], tau[7])		# plot-specific trait effect on sensitivity to crowding
+#	beta.t.3[k] ~ dnorm(beta.t[3], tau[X])		# plot-specific trait effect on sensitivity to crowding
+#	beta.t.4[k] ~ dnorm(beta.t[4], tau[X])		# plot-specific trait effect on sensitivity to crowding
+#	beta.t.5[k] ~ dnorm(beta.t[5], tau[X])		# plot-specific trait effect on sensitivity to crowding
+#	beta.t.6[k] ~ dnorm(beta.t[6], tau[X])		# plot-specific trait effect on sensitivity to crowding
     }
     
     for( i.a in 1:nindiv ) {
-    indiv.effect[i.a] ~ dnorm(0, tau[8])
+	indiv.effect[i.a] ~ dnorm(0, tau[8])
     }
     
     beta.t[1] ~ dnorm(0, 1E-4)
     beta.t[2] ~ dnorm(0, 1E-4)
+#   beta.t[3] ~ dnorm(0, 1E-4)
+#   beta.t[4] ~ dnorm(0, 1E-4)
+#   beta.t[5] ~ dnorm(0, 1E-4)
+#   beta.t[6] ~ dnorm(0, 1E-4)
     
     mu.beta[1] ~ dnorm(0, 1E-4)
     mu.beta[2] ~ dnorm(0, 1E-4)
-    mu.beta[3] ~ dnorm(0, 1E-4)
-    mu.beta[4] ~ dnorm(0, 1E-4)
+?   mu.beta[3] ~ dnorm(0, 1E-4)
+?   mu.beta[4] ~ dnorm(0, 1E-4)
+#   mu.beta[5] ~ dnorm(0, 1E-4)
+#   mu.beta[6] ~ dnorm(0, 1E-4)
     
     tau[1] ~ dgamma(1E-3, 1E-3)
-    tau[2] ~ dgamma(1E-3, 1E-3)	
+    tau[2] ~ dgamma(1E-3, 1E-3)
     tau[3] ~ dgamma(1E-3, 1E-3)
-    tau[4] ~ dgamma(1E-3, 1E-3)	
+    tau[4] ~ dgamma(1E-3, 1E-3)
     tau[5] ~ dgamma(1E-3, 1E-3)
-    tau[6] ~ dgamma(1E-3, 1E-3)	
-    tau[7] ~ dgamma(1E-3, 1E-3)	
-    tau[8] ~ dgamma(1E-3, 1E-3)	
-    #	tau[9] ~ dgamma(1E-3, 1E-3)	
+    tau[6] ~ dgamma(1E-3, 1E-3)
+    tau[7] ~ dgamma(1E-3, 1E-3)
+    tau[8] ~ dgamma(1E-3, 1E-3)
+#   tau[9] ~ dgamma(1E-3, 1E-3)
+#   tau[10] ~ dgamma(1E-3, 1E-3)
+#   tau[11] ~ dgamma(1E-3, 1E-3)
+#   tau[12] ~ dgamma(1E-3, 1E-3)
+#   tau[13] ~ dgamma(1E-3, 1E-3)
     
     sigma <- 1 / sqrt(tau)
     }
-    ", fill=TRUE)
+", fill=TRUE)
 sink()
 
-
-#### Specify the model
-
-
+##########################
+### Set initial values ###
+##########################
 inits <- function (){
 	list(
 	beta.t = rnorm(2),
@@ -323,29 +195,30 @@ inits <- function (){
 	tau = rgamma(8, 1E-3, 1E-3) + 1E-5)
 	}
 
-### USE jagsUI:
-params <- c("beta.t.1","beta.t.2","beta.t","mu.beta","sigma")
-
+########################
+### Run using jagsUI ###
+########################
 setwd("K:/Bob/Panama/MODELS")
 setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 
+# Set monitors
+params <- c("beta.t.1","beta.t.2","beta.t.3",
+	    "beta.t.4","beta.t.5","beta.t.6",
+	    "beta.t","mu.beta","sigma")
 
+# Run model
 fullmod <- jagsUI::jags(data, inits, params, 
-                    "growth_3level_trait.bug", 
+                    "growth_3level_NCI_TNCI_UNCI_NCIXDBH.bug", 
                     n.chains=3, n.adapt=5000, n.iter=25000, 
                     n.burnin=10000, n.thin=5, parallel=TRUE)
 
 fullmod
 
+# Update model
 paste("Start at:", Sys.time())
 update(fullmod, n.iter=50000)
 paste("Finish at:", Sys.time())
 
-
-str(fullmod$q50$beta.t.1)
-
-
-unlist(fullmod$q50)
 
 
 labs <- names(unlist(bcimod$q50))
