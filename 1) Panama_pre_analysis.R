@@ -70,16 +70,12 @@ bci4$growth <- ((bci4$dbhFinal - bci4$dbhStart)/bci4$days) * 365
 
 bci <- bci4
 
+# NOTE THAT I CHANGED 3 SPECIES CODES FROM THE ONLINE BCI SPCODE DATA 
+# TO BE CONSISTENT WITH THE BCI TRAIT DATA...
 spcodes <- read.csv("bci/spcodes.csv")
 bci$spcode <- spcodes$spcode[match(bci$Latin, paste(spcodes$Genus, spcodes$SpeciesName))]
 
-##################################################
-# WHY ARE THERE MULTIPLE SPECIES WITH NULL SPCODE?
-head(bci)
-table(bci$Latin[bci$spcode == 'NULL' & bci$Not.edge==1])
-x <- spcodes[spcodes$spcode=='NULL',]
-paste(x$Genus, x$SpeciesName, sep=" ", collapse=', ')
-##################################################
+bci <- droplevels(bci)
 
 bci <- bci[,c('Tag','Latin','spcode','PX','PY','Not.edge','plot', 'census', 'dbhStart', 'growth','survival','days')]
 names(bci) <- c('tag','latin','spcode','x','y','Not.Edge','plot','census','dbh','growth','survival','days')
@@ -97,9 +93,9 @@ load(file='bci/bci_preNCI_10.23.15.RDA')
 head(bci)
 
 
-#######################
+################################
 ### ADD OTHER PANAMA PLOTS ###
-#######################
+################################
 coc <- read.csv("cocoli/cocoli.csv")
 cocsp <- read.table("cocoli/cocolisp.txt", header=T)
 
@@ -227,7 +223,6 @@ luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
 load("lfdp/lfdp.RDA")
 luq$latin <- luqsp$latin[match(luq$SPECIES, luqsp$spcode)]
 luq <- as.data.frame(cbind(luq$latin, luq[,!colnames(luq) %in% 'latin']))
-
 names(luq) <- names(tdata)
 tdata <- rbind(tdata, luq)
 
@@ -286,7 +281,6 @@ bci <- bci[,c('SP.', 'WSG','HEIGHT_AVG','SEED_DRY','LEAFAREA_AVI',
 ### MATCH SP CODES WITH TRAITS..... 
 traits <- bci[match(tdata$spcode, bci$SP.),]
 tdata <- cbind(tdata, traits[,-1])
-
 
 # setwd("/Users/Bob/Projects/Thesis/DATA/traits")
 # luq <- read.csv("Site_Specific_mean_traits.csv", header=T, row.names=1)
