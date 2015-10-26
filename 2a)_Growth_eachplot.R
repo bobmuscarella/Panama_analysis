@@ -3,16 +3,25 @@
 #######################################
 library(jagsUI)
 
+### Z-TRANSFORM DATA
+z.score <- function (data) {
+	xm<- mean (data, na.rm=TRUE)
+	xsd<-sd(data, na.rm=TRUE)
+	xtrans<-(data-xm)/(2*xsd)	
+}
+
+### Running on PC???
+pc <- FALSE
+
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
-# if running on the PC:
-setwd("K:/Bob/Panama/DATA")
+if(pc==T){ 
+	setwd("K:/Bob/Panama/DATA") 
+	} else {
+		setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+		}
 
-# if running on my Mac
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-
-# load("alldata_NCI.RDA")
 load("Panama_AnalysisData_10.26.15.RDA")
 d <- tdata
 
@@ -40,27 +49,33 @@ d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z',
 				paste('log.tnci',traits,sep='.'), 
 				paste('log.unci',traits,sep='.'))]
 
-# TO WORK WITH ONE PLOT AT A TIME...
-d <- d[d$plot %in% 'cocoli',]
+# CHOOSE A PLOT TO WORK WITH ONE PLOT AT A TIME...
+plots <- c('cocoli', 'bci', 'sherman')
 
-i <- 1
-trait <- traits[i]
+for(p in 1) {
 
-# Remove species with NA for trait value
-d <- d[!is.na (d[,trait]),]  					
+	focal.plot <- plots[p]
+	d <- d[d$plot %in% focal.plot,]
 
-# Make a speciesxplot column for correct indexing...
-d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))	
+	for (i in 1:length(traits)) {
 
-# Drop factors for correct indexing
-d <- droplevels(d)						
-
-# Create an individual ID
-d$indiv <- as.numeric(as.factor(d$id))				
-
-# Order for correct indexing
-d <- d[order(d$plot, d$spcode, d$id, d$census),]
-
+		trait <- traits[i]
+		
+		# Remove species with NA for trait value
+		d <- d[!is.na (d[,trait]),]  					
+		
+		# Make a speciesxplot column for correct indexing...
+		d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))	
+	
+		# Drop factors for correct indexing
+		d <- droplevels(d)						
+		
+		# Create an individual ID
+		d$indiv <- as.numeric(as.factor(d$id))				
+		
+		# Order for correct indexing
+		d <- d[order(d$plot, d$spcode, d$id, d$census),]
+		
 
 #################################
 #### Organize the input data ####
@@ -74,7 +89,7 @@ data = list (
 	tnci = as.numeric(d[,paste('log.tnci.', trait, sep='')]),
 	unci = as.numeric(d[,paste('log.unci.', trait, sep='')]),
 	dbh = as.numeric(d$log.dbh.z),
-	trait = traitdata,
+	trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
 	indiv = d$indiv,
 	species = as.numeric(d$speciesxplot)
 	)
@@ -83,8 +98,11 @@ data = list (
 ##############################
 #### Write the model file ####
 ##############################
-setwd("K:/Bob/Panama/MODELS")
-setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+if(pc==T){ 
+	setwd("K:/Bob/Panama/MODELS") 
+	} else {
+		setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+		}
 
 sink("growth_2level_NCI_TNCI_UNCI_NCIXDBH.bug")
 
@@ -138,8 +156,9 @@ cat(" model {
     tau[8] ~ dgamma(1E-3, 1E-3)
     
     sigma <- 1 / sqrt(tau)
-    }
-", fill=TRUE)
+    
+    }"
+, fill=TRUE)
 sink()
 
 
@@ -152,24 +171,50 @@ sink()
 inits <- function (){
 	list(
 	beta.t = rnorm(2),
-	mu.beta = rnorm(4),
+	mu.beta = rnorm(6),
 	tau = rgamma(8, 1E-3, 1E-3) + 1E-5)
 	}
 
-setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+if(pc==T){ 
+	setwd("K:/Bob/Panama/MODELS") 
+	} else {
+		setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+		}
+
 
 # Set monitors
 params <- c("beta.t","mu.beta","sigma")
 
+file <- paste(trait, focal.plot, 'RDA', sep='.')
+print(paste('Started', file, 'at', Sys.time()))
+
 # Run model
-plotmod <- jagsUI::jags(data, inits, params, 
-                    "growth_2level_NCI_TNCI_UNCI_NCIXDBH.bug", 
-                    n.chains=2, n.adapt=100, n.iter=100, 
-                    n.burnin=50, n.thin=2, parallel=F)
+mod <- jagsUI::jags(data, inits, params, "growth_2level_NCI_TNCI_UNCI_NCIXDBH.bug", n.chains=3, n.adapt=5000, n.iter=60000, n.burnin=10000, n.thin=50, parallel=F)
+
+if(pc==T){ 
+	setwd("K:/Bob/Panama/RESULTS") 
+	} else {
+		setwd("/Users/Bob/Projects/Postdoc/Panama/RESULTS")
+		}
+
+print(paste('Finished', file, 'at', Sys.time()))
+save(mod, file=file)
+
+	}
+}
 
 
 
 
+###################################
+# If the models need to be run longer.... 
 
 
+setwd("/Users/Bob/Projects/Postdoc/Panama/RESULTS")
+save(plotmod, file='testmod.RDA')
+rm(plotmod)
+load('testmod.RDA')
+plotmod
+
+mod2 <- update(plotmod, n.iter=100)
 
