@@ -1,13 +1,13 @@
 library(sp)
 library(reshape)
 
+setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 
 ############################################
 ### CHUNK 1 : BUILD PANAMA DATA FROM RAW ####
 ############################################
 
 ### BCI ###
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 # bci4 <- read.csv("bci/BCI_census4.csv")
 # bci5 <- read.csv("bci/BCI_census5.csv")
 # save(bci4, file='bci/bci4.RDA')
@@ -189,8 +189,9 @@ tdata <- tdata[tdata$dbh != 0 , ]
 # save(tdata, file='panama_preNCI.RDA')
 # save(tdata, file='panama_preNCI_10.23.15.RDA')
 load('panama_preNCI_10.23.15.RDA')
+#master <- tdata
 
-### RUN THIS ... (POSSIBLY  ON OTHER MACHINE, TAKES OVERNIGHT)
+### RUN THIS ... (ON OTHER MACHINE, TAKES OVERNIGHT)
 Neigh.Fun <- function(i){ # a function to calculate trait NCI for the stem in row i
   if(tdata$Not.Edge[i] == 1){ #if stem is not on the edge
     foc.tree <- tdata[i,] #focal stem in row i
@@ -205,19 +206,22 @@ Neigh.Fun <- function(i){ # a function to calculate trait NCI for the stem in ro
     NA #For edge stems   
   }	
 }
+## tdata$nci <- unlist(lapply(1:nrow(tdata), Neigh.Fun))
 
-tdata$nci <- unlist(lapply(1:nrow(tdata), Neigh.Fun))
+### GET THE COMPLETED FILE FROM OTHER COMPUTER AND SAVE NCI COLUMN TO MASTER
+# load("postNCI_calculations/panama_NCI_notrait_10.23.15.RDA")
+# master$nci <- tdata$nci
+# tdata <- master
+# rm(master)
+
 # save(tdata, file='panama_NCI.RDA')
-# save(tdata, file='panama_NCI_10.23.15.RDA')
-
-# load('panama_NCI.RDA')
-load('panama_NCI_10.23.15.RDA')
+# save(tdata, file='panama_NCI_10.26.15.RDA')
 
 
 ##################################
 ### CHUNK 2 : ATTACH LFDP DATA ####
 ##################################
-load("panama_NCI_10.23.15.RDA")
+load('panama_NCI_10.26.15.RDA')
 
 luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
 load("lfdp/lfdp.RDA")
@@ -248,14 +252,9 @@ spcodeplot <- paste(tdata$spcode, tdata$plot)
 
 tdata$palm <-  spcodeplot %in% spcodes$spcodeplot[spcodes$family == "Arecaceae" ]
 
-# save(tdata, file='alldata_NCI.RDA')
-# save(tdata, file='alldata_NCI_notraits_10.23.15.RDA')
-
 ##################################
 ### CHUNK 3 : ATTACH TRAIT DATA ####
 ##################################
-#load('alldata_NCI.RDA')
-load('alldata_NCI_notraits_10.23.15.RDA')
 
 ### EXCLUDE LFDP DATA FOR NOW... 
 tdata <- tdata[!tdata$plot %in% 'lfdp',]
@@ -288,16 +287,13 @@ tdata <- cbind(tdata, traits[,-1])
 # head(luq)
 # tdata$WSG[tdata$plot=='lfdp'] <- luq$WD[match(tdata$spcode[tdata$plot=='lfdp'], luq$SPECIES)]
 
-sum(!is.na(tdata$WSG))/nrow(tdata) # WD data for ~75% of observations here...
-
-# save(tdata, file='alldata_NCI_Traits_10.23.15.RDA')
+sum(!is.na(tdata$WSG))/nrow(tdata) # WD data for ~95% of observations here...
 
 
 ######################################################
 ### CHUNK 4 : GET TRAIT NCI and UNKNOWN TRAIT NCI    ####
 ######################################################
 # A function to calculate trait NCI for the stem in row i
-
 Trait.Neigh.Fun <- function(i, trait){ 
 
 # If stem is not on the edge
@@ -381,11 +377,18 @@ traits <- c('WSG','HEIGHT_AVG','log.SEED_DRY','log.LMALEAF_AVI','log.LDMC_AVI')
 #					'log.LMALEAF_AVI','log.LDMC_AVI','log.AVG_LAMTUF','log.RGR_10',
 #					'log.RGR_50','log.RGR_100','log.MORT_10','log.MORT_100')
 
-### I USED THIS TEMPORARY SAVE TO RUN THE TRAIT NCI AT THE SAME TIME AS REGULAR NCI...
-###save(tdata, file='panama_preNCI_traits_10.23.15.RDA')
+####################
+###   ARCHIVE...   #####
+####################
+# I USED THIS TEMPORARY SAVE TO RUN THE TRAIT NCI AT THE SAME TIME AS REGULAR NCI...
+# save(tdata, file='panama_NCI_Traits_no.tNCI_10.26.15.RDA')
+####################
+
+
 
 # IN PRACTICE, I WILL SPLIT THIS UP INTO DIFFERENT R SESSIONS:
 # Get tNCI for all traits of interest
+
 for(1:length(traits)){
 	trait <- traits[i]
 	newname <- paste('tnci', traits[i], sep='.')
@@ -399,9 +402,176 @@ for(1:length(traits)){
 	tdata[,newname] <- unlist(lapply(1:nrow(tdata), Unk.Trait.Neigh.Fun, trait))
 }
 
-# save(tdata, file='data_10.23.15.RDA')
-# load("data_10.13.15.RDA")
 
-head(tdata)
+##########################################################
+###   APPEND tNCI and uNCI metrics from multiple R sessions...   #####
+##########################################################
+load('panama_NCI_Traits_no.tNCI_10.26.15.RDA')
+master <- tdata
+rm(tdata)
+head(master, 21)
+
+list.files('postNCI_calculations/')
+
+### Get tNCI and uNCI by trait...
+
+load("postNCI_calculations/panama_with_tnci.WSG_10.23.15.RDA")
+tdata[19:21,]
+master$tnci.wsg <- tdata$tnci.WSG
+master$tnci.wsg[is.na(master$WSG)] <- NA
+rm(tdata)
+load("postNCI_calculations/panama_with_unci.WSG_10.23.15.RDA")
+tdata[19:21,]
+master$unci.wsg <- tdata$unci.WSG
+master$unci.wsg[is.na(master$WSG)] <- NA
+rm(tdata)
+
+
+load("postNCI_calculations/panama_with_tnci.log.LDMC_AVI_10.23.15.RDA")
+tdata[19:21,]
+master$tnci.log.ldmc <- tdata$tnci.log.LDMC_AVI
+master$tnci.log.ldmc[is.na(master$log.LDMC_AVI)] <- NA
+rm(tdata)
+load("postNCI_calculations/panama_with_unci.log.LDMC_AVI_10.23.15.RDA")
+tdata[19:21,]
+master$unci.log.ldmc <- tdata$unci.log.LDMC_AVI
+master$unci.log.ldmc[is.na(master$log.LDMC_AVI)] <- NA
+rm(tdata)
+
+
+load("postNCI_calculations/panama_with_tnci.log.LMALEAF_AVI_10.23.15.RDA")
+tdata[19:21,]
+master$tnci.log.lma <- tdata$tnci.log.LMALEAF_AVI
+master$tnci.log.lma[is.na(master$log.LMALEAF_AVI)] <- NA
+rm(tdata)
+load("postNCI_calculations/panama_with_unci.log.LMALEAF_AVI_10.23.15.RDA")
+tdata[19:21,]
+master$unci.log.lma <- tdata$unci.log.LMALEAF_AVI
+master$unci.log.lma[is.na(master$log.LMALEAF_AVI)] <- NA
+rm(tdata)
+
+
+load("postNCI_calculations/panama_with_tnci.log.SEED_DRY_10.23.15.RDA")
+tdata[19:21,]
+master$tnci.log.seed <- tdata$tnci.log.SEED_DRY
+master$tnci.log.seed[is.na(master$log.SEED_DRY)] <- NA
+rm(tdata)
+load("postNCI_calculations/panama_with_unci.log.SEED_DRY_10.23.15.RDA")
+tdata[19:21,]
+master$unci.log.seed <- tdata$unci.log.SEED_DRY
+master$unci.log.seed[is.na(master$log.SEED_DRY)] <- NA
+rm(tdata)
+
+
+load("postNCI_calculations/panama_with_tnci.HEIGHT_AVG_10.23.15.RDA")
+tdata[19:21,]
+master$tnci.hmax <- tdata$tnci.HEIGHT_AVG
+master$tnci.hmax[is.na(master$HEIGHT_AVG)] <- NA
+rm(tdata)
+load("postNCI_calculations/panama_with_unci.HEIGHT_AVG_10.23.15.RDA")
+tdata[19:21,]
+master$unci.hmax <- tdata$unci.HEIGHT_AVG
+master$unci.hmax[is.na(master$HEIGHT_AVG)] <- NA
+rm(tdata)
+
+
+# check it out...
+master[19:25,]
+
+tdata <- master
+# save(tdata, file="panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
+
+
+#######################################
+###  START HERE WITH PROCESSED DATA ###
+#######################################
+# load("alldata_NCI.RDA")
+load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
+
+###############################
+### CURRENT CONSIDERATIONS: ###
+###############################
+### Remove LFDP data... (for now)
+tdata <- tdata[tdata$plot != 'lfdp',]
+
+### Remove palms (doing it this way to keep them for survival...)
+tdata$growth[tdata$palm==T] <- NA
+
+### What to do about growth outliers? Remove > 5 sd ...
+growth.include <- abs(tdata$growth) < sd(tdata$growth, na.rm=T) * 5
+growth.include <- ifelse(is.na(growth.include), FALSE, growth.include)
+tdata$Growth.Include <- growth.include
+
+#################
+### DATA PREP ###
+#################
+### Remove edge trees and otherwise NA trees
+tdata <- tdata[tdata$Not.Edge %in% 1,] 
+tdata <- tdata[ ! tdata$survival %in% NA,]
+tdata <- droplevels(tdata)
+
+### Z-TRANSFORM DATA
+z.score <- function (data) {
+	xm<- mean (data, na.rm=TRUE)
+	xsd<-sd(data, na.rm=TRUE)
+	xtrans<-(data-xm)/(2*xsd)	
+}
+
+### Log-transform coefficients
+# log the NCI metric
+tdata$log.nci <- log(tdata$nci + 1)
+
+# log the dbh
+tdata$log.dbh <- log(tdata$dbh)
+
+# log the tNCI and uNCI metrics
+tdata$log.tnci.hmax <- log(tdata$tnci.hmax + 1)
+tdata$log.unci.hmax <- log(tdata$unci.hmax + 1)
+tdata$log.tnci.log.ldmc <- log(tdata$tnci.log.ldmc + 1)
+tdata$log.unci.log.ldmc <- log(tdata$unci.log.ldmc + 1)
+tdata$log.tnci.log.lma <- log(tdata$tnci.log.lma + 1)
+tdata$log.unci.log.lma <- log(tdata$unci.log.lma + 1)
+tdata$log.tnci.log.seed <- log(tdata$tnci.log.seed + 1)
+tdata$log.unci.log.seed <- log(tdata$unci.log.seed + 1)
+tdata$log.tnci.wsg <- log(tdata$tnci.wsg + 1)
+tdata$log.unci.wsg <- log(tdata$unci.wsg + 1)
+
+
+#########################################
+####    Standardize coefficients within plots    ####
+#########################################
+tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
+
+tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, center=F))
+
+tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, z.score))
+
+tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, z.score))
+
+tdata$log.tnci.wsg.z <- unlist(tapply(tdata$log.tnci.wsg, tdata$plot, z.score))
+tdata$log.unci.wsg.z <- unlist(tapply(tdata$log.unci.wsg, tdata$plot, z.score))
+tdata$log.tnci.log.ldmc.z <- unlist(tapply(tdata$log.tnci.log.ldmc, tdata$plot, z.score))
+tdata$log.unci.log.ldmc.z <- unlist(tapply(tdata$log.unci.log.ldmc, tdata$plot, z.score))
+tdata$log.tnci.log.lma.z <- unlist(tapply(tdata$log.tnci.log.lma, tdata$plot, z.score))
+tdata$log.unci.log.lma.z <- unlist(tapply(tdata$log.unci.log.lma, tdata$plot, z.score))
+tdata$log.tnci.log.seed.z <- unlist(tapply(tdata$log.tnci.log.seed, tdata$plot, z.score))
+tdata$log.unci.log.seed.z <- unlist(tapply(tdata$log.unci.log.seed, tdata$plot, z.score))
+tdata$log.tnci.hmax.z <- unlist(tapply(tdata$log.tnci.hmax, tdata$plot, z.score))
+tdata$log.unci.hmax.z <- unlist(tapply(tdata$log.unci.hmax, tdata$plot, z.score))
+
+
+###############################################################
+###   OLD WAY WAS TO CENTER WITHIN PLOTS WITHOUT SCALING   ###
+###############################################################
+# tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
+# tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, scale, scale=F))
+# tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, scale, scale=F))
+# tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
+# tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
+
+save(tdata, file='Panama_AnalysisData_10.26.15.RDA')
+
+
+
 
 
