@@ -46,8 +46,8 @@ traits <- c('wsg','log.ldmc','log.lma','log.seed','hmax')
 
 d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z', 
 				traits, 
-				paste('log.tnci',traits,sep='.'), 
-				paste('log.unci',traits,sep='.'))]
+				paste('log.tnci', traits, 'z', sep='.'), 
+				paste('log.unci', traits, 'z', sep='.'))]
 
 # CHOOSE A PLOT TO WORK WITH ONE PLOT AT A TIME...
 plots <- c('cocoli', 'bci', 'sherman')
@@ -86,8 +86,8 @@ data = list (
 	nspecies = length(levels(d$speciesxplot)),
 	growth = as.numeric(d$growth.z),
 	nci = as.numeric(d[,'log.nci.z']),
-	tnci = as.numeric(d[,paste('log.tnci.', trait, sep='')]),
-	unci = as.numeric(d[,paste('log.unci.', trait, sep='')]),
+	tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
+	unci = as.numeric(d[,paste('log.unci.', trait, '.z', sep='')]),
 	dbh = as.numeric(d$log.dbh.z),
 	trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
 	indiv = d$indiv,
