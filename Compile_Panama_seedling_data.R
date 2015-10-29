@@ -204,7 +204,7 @@ save(data, file='panama_seedlings/Panama_gradient_seedlings.RDA')
 
 
 
-pdf(file='panama_seedlings/test.pdf')
+pdf(file='panama_seedlings/Preliminary_plots.pdf')
 
 par(mfrow=c(2,2), oma=c(1,1,0,0), mar=c(4,4,2,2))
 
