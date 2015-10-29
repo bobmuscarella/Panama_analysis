@@ -87,6 +87,14 @@ for (f1 in 1:length(files1)){
 
 }
 
+
+# Fix some typos found along the way...
+out2013$Q20[out2013$Q20 == "02,OO"] <- "02,00"
+out2014$Q20[out2014$Q20 == "02,OO"] <- "02,00"
+
+
+
+
 ################################
 ###   COMBINE 2013 / 2014 DATA   ###
 ################################
@@ -101,9 +109,9 @@ for (i in 1:length(sites)){
 }
 
 out$uID <- paste(out$SITE, out$Q20, out$P5, out$TAG, out$SPP, sep='.')
-out <- out[out$SPP != '_',]
-out <- out[out$SPP != '',]
 
+# Get rid of lines without species
+out <- out[out$SPP != '_',]
 out <- droplevels(out)
 
 sort(unique(out$DATE))
@@ -117,199 +125,107 @@ out$DATE[out$DATE %in% "17/Dic/2013"] <- "2013-12-17"
 out$DATE[out$DATE %in% "18/Dic/2013"] <- "2013-12-18"
 out$DATE[out$DATE %in% "19/Dic/2013"] <- "2013-12-19"
 out$DATE[out$DATE %in% "28-Oct_2013"] <- "2013-10-28"
+
+out$DATE <- as.Date(out$DATE)
 out <- droplevels(out)
 
-out$Date <- as.Date(out$DATE)
 sort(unique(out$DATE))
 
-################################
-###   WORKING FRONT....
+######################
+######################
+######################
+### Check out the species codes...
+sort(unique(as.character(out$SPP)))
 
+### Manually correct spcode errors:
+out$SPP[out$SPP=='ardigl'] <- 'ARDIGL'
 
-# Subset uIDs that occurred in both years (not necessarily alive)
-test <- out[out$uID %in% names(table(out$uID))[table(out$uID)==2],]
-test <- test[order(test$uID, test$YEAR),]
-head(test)
-
-# Subset uIDs that were only observed once
-singleobs <- names(table(out$uID))[ table(out$uID) == 1 ]
-singleobsyear <- out$YEAR[out$uID %in% singleobs]
-
-# How many total deaths were there?
-sum(table(out$CODIGOS)[names(table(out$CODIGOS)) %in% c('D','T','N','D,P','T,P','N,P')])
-
-# Note as alive=T if not one of these death codes
-out$alive <- !out$CODIGOS %in% c('D','T','N','D,P','T,P','N,P')
-
-# Unelegant way to remove a couple stems with 3 observations (appear to be errors)
-threeobs <- names(table(out$uID))[ table(out$uID) > 2 ]
-out[out$uID %in% threeobs,]
+### Find stems with > 2 observations overall (manual error check)
+x <- names(table(out$uID))[ table(out$uID) > 2 ]
+out[order(out$uID),][out$uID[order(out$uID)] %in% x, ]
 out <- out[!rownames(out) %in% c(7362, 8026), ]
 subtag <- c('a','b','a','b')
 out$uID[out$uID == "Sr.04,03.31.189.LICAHY"] <- paste('Sr.04,03.31.189.', subtag, '.LICAHY', sep='')
 
+### Find (and remove) stems with > 2 observations in 1 year (errors?)
+x <- rownames(table(out$uID, out$YEAR))[rowSums(table(out$uID, out$YEAR) > 1) > 0]
+out[order(out$uID),][out$uID[order(out$uID)] %in% x, ]
+out <- out[!out$uID %in% x, ]
 
-# Post hoc removal of stems that have errors
-out <- out[!out$uID %in% "Sr.04,03.31.193.PSYCB2",]
-out <- out[!out$uID %in% "Ol.02,04.42.118.CROTBI",]
-out <- out[!out$uID %in% "Ol.02,04.42.121.CROTBI",]
-out <- out[!out$uID %in% "Ol.02,04.42.102.CROTBI",]
-out <- out[!out$uID %in% "Ol.02,04.42.165.CROTBI",]
-
-head(out)
-head(out[out$alive==F,])
-table(out$uID, out$YEAR)
-
-out <- droplevels(out)
-
-res <- matrix(nrow=length(unique(out$uID)), ncol=14)
-
-for(i in 1:length(unique(out$uID))){
-
-	ind <- unique(out$uID)[i]
-	tmp <- out[out$uID == ind,]
-	tmp$ALT <- as.numeric(as.character(tmp$ALT))
-	tmp$Alt.2013 <- as.numeric(as.character(tmp$Alt.2013))  
-  
-	if(length(unique(tmp$SPP)) == 1){
-	  SPP <- as.character(unique(tmp$SPP))
-	} else {
-	  SPP <- "SPP_CONFLICT"
-	}
-  
-  if(length(tmp$ALT[tmp$YEAR==2013]) > 0){
-		ALT2013 <- as.numeric(as.character(tmp$ALT[tmp$YEAR==2013]))
-	} else {
-		ALT2013 <- NA
-	}
-
-	if(length(tmp$ALT[tmp$YEAR==2014]) > 0){
-		ALT2014 <- as.numeric(as.character(tmp$ALT[tmp$YEAR==2014]))
-	} else {
-		ALT2014 <- NA
-	}
-
-	if(length(tmp$DATE[tmp$YEAR==2013]) > 0){
-		DATE2013 <- as.Date(tmp$DATE[tmp$YEAR==2013], format="%Y-%m-%d")
-	} else {
-		DATE2013 <- NA
-	}
-
-	if(length(tmp$DATE[tmp$YEAR==2014]) > 0){
-		DATE2014 <- as.Date(tmp$DATE[tmp$YEAR==2014], format="%Y-%m-%d")
-	} else {
-		DATE2014 <- NA
-	}
-	
-	if(!is.na(DATE2013) & !is.na(DATE2014)){
-		INT <- as.numeric(DATE2014 - DATE2013)
-	} else {
-		INT <- NA
-	}
-	
-	GROWTH <- ALT2014 - ALT2013
-	SURVIVE <- !is.na(ALT2013) & !is.na(ALT2014)
-	RECRUIT <- is.na(ALT2013) & !is.na(ALT2014)
-	DIE <- !is.na(ALT2013) & is.na(ALT2014)
-	STATUS <- c('s','r','d')[c(SURVIVE, RECRUIT, DIE)]
-	
-	STATUS <- ifelse(length(STATUS) > 0, STATUS, NA)
-
-	SITE <- unique(tmp$SITE)
-	Q20 <- unique(tmp$Q20)
-	P5 <- unique(tmp$P5)
-	TAG <- unique(tmp$TAG)
-  CODES <- paste(tmp$CODIGOS[tmp$CODIGOS != "_"], collapse=', ')
-
-	res[ i , ] <- c(ind, SPP, ALT2013, ALT2014, GROWTH, DATE2013, DATE2014, INT, STATUS, SITE, Q20, P5, TAG, CODES)
-	print( paste(i, 'out of', length(unique(out$uID))))
+### Find stems with blank SPP
+### Replace SPP and uID if changed from blank to non-blank between 2013-2014
+tmp <- out[out$SPP=='',]
+for(i in 1:length(tmp$uID)){
+  tmp2 <- out[grep(tmp$uID[i], out$uID),]
+  if(length(unique(tmp2$uID)) > 1){
+    new.uID <- unique(as.character(tmp2$uID[tmp2$SPP!='']))[1]
+    new.SPP <- unique(as.character(tmp2$SPP[tmp2$SPP!='']))[1]
+    out$SPP[out$uID==tmp$uID[i]] <- new.SPP
+    out$uID[out$uID==tmp$uID[i]] <- new.uID
+  }
 }
 
-res <- as.data.frame(res)
+### Identify stems with more than three observations (errors?)
+uid <- rownames(table(out$uID, out$YEAR))
+uid <- uid[rowSums(table(out$uID, out$YEAR) > 1) > 0]
+out[out$uID %in% uid,] # explore the wierdos...
 
-res <- res[!is.na(res[,1]),]
-
-names(res) <- c('uID','spcode','ht13','ht14','growth','date13','date14','int','status','site','q20','p5','tag','codes')
-
-
-par(mfrow=c(2,2))
-
-
-res$growth <- as.numeric(as.character(res$growth))
-boxplot(res$growth[!is.na(res$growth) & !rownames(res) %in% grep('R', res$codes)] ~ res$site[!is.na(res$growth) & !rownames(res) %in% grep('R', res$codes)])
+# Manually remove these stems...
+out <- out[!(out$uID == "Sr.04,02.33.184.PSYCPO" & out$TAG == 1),]
+out <- out[!out$uID %in% c("Sr.04,04.31.172.MICOEL","Sr.04,02.33.80.MABEOC","Sr.01,04.41.73.MYRCGA"),]
 
 
+### Convert to wide format
+wide <- reshape(out, v.names=c("ALT","Alt.2013", "SPP","DAP","CODIGOS",
+                "NOTAS","DATE","STATUS"), idvar="uID", drop=c("FILE","TALLO"),
+                direction = "wide", timevar='YEAR')
+
+### Convert numeric columns back to numeric...
+num.cols <- c("ALT.2013","Alt.2013.2013","DAP.2013","ALT.2014","Alt.2013.2014","DAP.2014")
+  for(i in 1:length(num.cols)){
+    wide[,num.cols[i]] <- as.numeric(as.character(wide[,num.cols[i]]))  
+  }
+
+wide$GROWTH <- wide$ALT.2014 - wide$ALT.2013
+wide$DAYS <- as.numeric(wide$DATE.2014 - wide$DATE.2013)
+wide$RECRUIT <- ifelse(is.na(wide$STATUS.2013), 2014, NA)
+wide$SURVIVE <- ifelse(!is.na(wide$ALT.2013) & !is.na(wide$ALT.2014), 1, ifelse(wide$STATUS.2014 %in% 'new', NA, 0))
+
+data <- wide[,c('uID','SITE','SPP.2014','ALT.2013','ALT.2014','STATUS.2014','GROWTH','DAYS','SURVIVE','CODIGOS.2013','CODIGOS.2014')]
+names(data) <- c('uID','SITE','SPCODE','HT13','HT14','STATUS14','GROWTH','DAYS','ALIVE','code13','code14')
+data <- droplevels(data)
+
+save(data, file='panama_seedlings/Panama_gradient_seedlings.RDA')
 
 
-
-tmp <- res[!rownames(res) %in% grep('R', res$codes),]
-plot(tapply(tmp$growth, tmp$site, median, na.rm=T), ylim=c(-1000,1000))
-q10 <- tapply(tmp$growth, tmp$site, quantile, na.rm=T, prob=0.2)
-q90 <- tapply(tmp$growth, tmp$site, quantile, na.rm=T, prob=0.8)
-segments(1:8, MIN, 1:8, MAX)
-
-
-
-
-tmp <- res[!is.na(res$growth) & !rownames(res) %in% grep('R', res$codes),]
-table(tmp$site, tmp$spcode)
-
-
-### SOME PROBABLE SPECIES CODE ERRORS: ###
-### REALLY I NEED A TABLE OF REAL SPECIES CODES... ###
-# "ardigl" NEEDS TO BE "ARDIGL"
-# "BIGNONACEAE" AS A SPCODE???
-# SHOULD "CASTLE" BE "CASTEL"?
-
-
-head(res)
+######################
+######################
+######################
 
 
 
+pdf(file='panama_seedlings/test.pdf')
 
-pdf(file='test.pdf')
+par(mfrow=c(2,2), oma=c(1,1,0,0), mar=c(4,4,2,2))
 
-par(mfrow=c(2,2))
-
-plot(table(res$status, res$site)[1,], ylim=c(0,1200), type='b', col=2, pch=21, bg=2, lwd=2, axes=F, xlab='Site', ylab='Number of Individuals')
-points(table(res$status, res$site)[3,], type='b', col=3, pch=21, bg=3, lwd=2)
-points(table(res$status, res$site)[2,], type='b', col=4, pch=21, bg=4, lwd=2)
-axis(1, at=1:length(unique(res$site)), labels=unique(res$site))
+plot(table(data$ALIVE, data$SITE)[1,], ylim=c(0,1800), type='b', col=2, pch=21, bg=2, lwd=2, axes=F, xlab='Site', ylab='Number of Individuals')
+points(table(data$ALIVE, data$SITE)[2,], type='b', col=3, pch=21, bg=3, lwd=2)
+points(tapply(data$ALIVE, data$SITE, function(x) sum(is.na(x))), type='b', col=4, pch=21, bg=4, lwd=2)
+axis(1, at=1:length(unique(data$SITE)), labels=unique(data$SITE))
 axis(2)
 legend("topleft", pch=16, col=c(3,2,4), legend=c('Survive (2013-14)','Die (2013-14)','Recruit (2014)'), bty='n', inset=0.1, lty=1)
 
-n.uID <- tapply(res$uID, res$site, function(x) length(unique(x)))
-plot(n.uID, ylim=c(0,2000), pch=21, bg='grey', ylab='Total number of unique individuals', axes=F, xlab='Site')
-axis(1, at=1:length(unique(res$site)), labels=unique(res$site))
-axis(2)
-
-comm <- table(res$site, res$spcode)
+comm <- table(data$SITE, data$SPCODE)
 library(vegan)
 raresp <- rarefy(x=comm, sample=min(rowSums(comm>0)))
-plot(raresp, ylab='Rarefied Species Richness', xlab='Site', axes=F, pch=21, bg='grey', ylim=c(10,50))
-axis(1, at=1:length(unique(res$site)), labels=unique(res$site))
+plot(raresp, ylab='Rarefied Richness', xlab='Site', axes=F, pch=21, bg='grey', ylim=c(10,50))
+axis(1, at=1:length(unique(data$SITE)), labels=unique(data$SITE))
 axis(2)
 
-boxplot(res$growth[!rownames(res) %in% grep('R', res$codes)] ~ res$site[!rownames(res) %in% grep('R', res$codes)], ylim=c(-200,500), notch=T, ylab='Growth (Alt)', xlab='Site', col='grey')
+boxplot(data$GROWTH[!rownames(data) %in% grep('R', data$code14)] ~ data$SITE[!rownames(data) %in% grep('R', data$code14)], ylim=c(-300,500), notch=T, ylab='Ht Growth (mm)', xlab='Site', col='grey', axes=F)
 abline(h=0, lty=2, col=2, lwd=2)
+axis(1, at=1:length(unique(data$SITE)), labels=unique(data$SITE), cex.axis=.75)
+axis(2)
+box()
 
 dev.off()
-
-
-
-
-
-tmp <- res[!rownames(res) %in% grep('R', res$codes),]
-
-plot(table(tmp$status, tmp$site)[1,], ylim=c(0,1200), type='b', col=2, pch=21, bg=2, lwd=2, axes=F, xlab='Site', ylab='Number')
-points(table(tmp$status, tmp$site)[3,], type='b', col=3, pch=21, bg=3, lwd=2)
-points(table(tmp$status, tmp$site)[2,], type='b', col=4, pch=21, bg=4, lwd=2)
-axis(1, at=1:length(unique(tmp$site)), labels=unique(tmp$site))
-axis(2)
-legend("topleft", pch=16, col=c(3,2,4), legend=c('Survive','Die','Recruit'), bty='n', inset=0.1, lty=1)
-
-
-
-
-
-
