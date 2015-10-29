@@ -195,7 +195,7 @@ data <- wide[,c('uID','SITE','SPP.2014','ALT.2013','ALT.2014','STATUS.2014','GRO
 names(data) <- c('uID','SITE','SPCODE','HT13','HT14','STATUS14','GROWTH','DAYS','ALIVE','code13','code14')
 data <- droplevels(data)
 
-save(data, file='panama_seedlings/Panama_gradient_seedlings.RDA')
+save(data, file='panama_seedlings/Gradient_seedling_data_10.29.15.RDA')
 
 
 ######################
