@@ -208,20 +208,32 @@ pdf(file='panama_seedlings/Preliminary_plots.pdf')
 
 par(mfrow=c(2,2), oma=c(1,1,0,0), mar=c(4,4,2,2))
 
-plot(table(data$ALIVE, data$SITE)[1,], ylim=c(0,1800), type='b', col=2, pch=21, bg=2, lwd=2, axes=F, xlab='Site', ylab='Number of Individuals')
+# TOTAL STEMS
+plot(table(data$ALIVE, data$SITE)[1,], ylim=c(0,1800), type='b', 
+     col=2, pch=21, bg=2, lwd=2, axes=F, xlab='Site', ylab='Number of Individuals')
 points(table(data$ALIVE, data$SITE)[2,], type='b', col=3, pch=21, bg=3, lwd=2)
-points(tapply(data$ALIVE, data$SITE, function(x) sum(is.na(x))), type='b', col=4, pch=21, bg=4, lwd=2)
-axis(1, at=1:length(unique(data$SITE)), labels=unique(data$SITE))
+points(tapply(data$ALIVE, data$SITE, function(x) sum(is.na(x))), 
+       type='b', col=4, pch=21, bg=4, lwd=2)
+axis(1, at=1:length(unique(data$SITE)), labels=unique(data$SITE), cex.axis=.75)
 axis(2)
-legend("topleft", pch=16, col=c(3,2,4), legend=c('Survive (2013-14)','Die (2013-14)','Recruit (2014)'), bty='n', inset=0.1, lty=1)
+legend("topleft", pch=16, col=c(3,2,4), 
+       legend=c('Survive (2013-14)','Die (2013-14)','Recruit (2014)'), 
+       bty='n', inset=0.1, lty=1)
 
+# RAW MORTALITY RATE
+b <- barplot(table(data$ALIVE, data$SITE)[1,] / colSums(table(data$ALIVE, data$SITE)), 
+             ylim=c(0,0.5), col='grey', xlab='Site', ylab='Raw Mortality Rate', cex.names=.75)
+axis(1, at=b, labels=rep('',8))
+
+# RARIFIED SPECIES RICHNESS
 comm <- table(data$SITE, data$SPCODE)
 library(vegan)
 raresp <- rarefy(x=comm, sample=min(rowSums(comm>0)))
-plot(raresp, ylab='Rarefied Richness', xlab='Site', axes=F, pch=21, bg='grey', ylim=c(10,50))
-axis(1, at=1:length(unique(data$SITE)), labels=unique(data$SITE))
+b <- barplot(as.vector(raresp), ylab='Rarefied Richness', xlab='Site', axes=F, bg='grey', space=.5)
+axis(1, at=b, labels=unique(data$SITE), cex.axis=.75)
 axis(2)
 
+# RAW GROWTH
 boxplot(data$GROWTH[!rownames(data) %in% grep('R', data$code14)] ~ data$SITE[!rownames(data) %in% grep('R', data$code14)], ylim=c(-300,500), notch=T, ylab='Ht Growth (mm)', xlab='Site', col='grey', axes=F)
 abline(h=0, lty=2, col=2, lwd=2)
 axis(1, at=1:length(unique(data$SITE)), labels=unique(data$SITE), cex.axis=.75)
