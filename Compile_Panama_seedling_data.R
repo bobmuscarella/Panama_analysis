@@ -1,10 +1,12 @@
-library(gdata)
+### Library to read .xls and .xlsx files
+library(gdata) 
+
+### Set wd where you save 'panama_seedlings' unzipped file with the raw internal folders (all unzipped).
 setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 
 #####################################
 ###   READ AND PROCESS 2013 DATA   ###
 #####################################
-
 out2013 <- data.frame()
 files0 <- list.files('panama_seedlings')[1]
 files1 <- list.files(paste('panama_seedlings', files0, sep='/'))
@@ -29,12 +31,11 @@ for (f1 in 1:length(files1)){
 	}
 }
 colnames(out2013) <- c('Q20','P5','TAG','SPP','ALT',
-										'DAP','TALLO','CODIGOS','NOTAS',
-										'DATE','YEAR','FILE','STATUS')
+			'DAP','TALLO','CODIGOS','NOTAS',
+			'DATE','YEAR','FILE','STATUS')
 
 Alt.2013 <- rep(NA, nrow(out2013))
 out2013 <- as.data.frame(cbind(out2013[1:4], Alt.2013, out2013[,5:ncol(out2013)]))
-
 
 
 #####################################
@@ -42,7 +43,6 @@ out2013 <- as.data.frame(cbind(out2013[1:4], Alt.2013, out2013[,5:ncol(out2013)]
 #####################################
 
 out2014 <- data.frame()
-
 files0 <- list.files('panama_seedlings')[2]
 files1 <- list.files(paste('panama_seedlings', files0, sep='/'))
 
@@ -87,33 +87,32 @@ for (f1 in 1:length(files1)){
 
 }
 
-
-# Fix some typos found along the way...
+# Fix some typos I discovered  along the way...
 out2013$Q20[out2013$Q20 == "02,OO"] <- "02,00"
 out2014$Q20[out2014$Q20 == "02,OO"] <- "02,00"
 
 
-
-
-################################
+####################################
 ###   COMBINE 2013 / 2014 DATA   ###
-################################
+####################################
 out <- rbind(out2013, out2014)
 
+### Create site codes
 sites <- c('Buena', 'Charco', 'Metro', 'Oleo', 'Pacifico', 'Santa', 'Sherman', 'Soberania')
 sitenames <- c('Bu', 'Ch', 'Me', 'Ol', 'Pa', 'Sr', 'Sh', 'So')
-
 out$SITE <- NA
 for (i in 1:length(sites)){
 	out$SITE[grep(sites[i], out$FILE)] <- sitenames[i]
 }
 
+### Create an individual stem ID (uID)
 out$uID <- paste(out$SITE, out$Q20, out$P5, out$TAG, out$SPP, sep='.')
 
-# Get rid of lines without species
+### Remove lines without species
 out <- out[out$SPP != '_',]
 out <- droplevels(out)
 
+### Standardize census dates
 sort(unique(out$DATE))
 out$DATE[out$DATE %in% "13/Dic/13"] <- "2013-12-13"
 out$DATE[out$DATE %in% "13/Dic/2013"] <- "2013-12-13"
@@ -125,19 +124,15 @@ out$DATE[out$DATE %in% "17/Dic/2013"] <- "2013-12-17"
 out$DATE[out$DATE %in% "18/Dic/2013"] <- "2013-12-18"
 out$DATE[out$DATE %in% "19/Dic/2013"] <- "2013-12-19"
 out$DATE[out$DATE %in% "28-Oct_2013"] <- "2013-10-28"
-
 out$DATE <- as.Date(out$DATE)
 out <- droplevels(out)
-
 sort(unique(out$DATE))
 
-######################
-######################
-######################
 ### Check out the species codes...
+### HERE IT WOULD BE GOOD TO CHECK AGAINST KNOWN SPECIES CODES!
 sort(unique(as.character(out$SPP)))
 
-### Manually correct spcode errors:
+### Manually correct some spcode errors:
 out$SPP[out$SPP=='ardigl'] <- 'ARDIGL'
 
 ### Find stems with > 2 observations overall (manual error check)
@@ -170,12 +165,11 @@ uid <- rownames(table(out$uID, out$YEAR))
 uid <- uid[rowSums(table(out$uID, out$YEAR) > 1) > 0]
 out[out$uID %in% uid,] # explore the wierdos...
 
-# Manually remove these stems...
+### Manually remove these stems...
 out <- out[!(out$uID == "Sr.04,02.33.184.PSYCPO" & out$TAG == 1),]
 out <- out[!out$uID %in% c("Sr.04,04.31.172.MICOEL","Sr.04,02.33.80.MABEOC","Sr.01,04.41.73.MYRCGA"),]
 
-
-### Convert to wide format
+### Convert data to wide format
 wide <- reshape(out, v.names=c("ALT","Alt.2013", "SPP","DAP","CODIGOS",
                 "NOTAS","DATE","STATUS"), idvar="uID", drop=c("FILE","TALLO"),
                 direction = "wide", timevar='YEAR')
@@ -186,11 +180,13 @@ num.cols <- c("ALT.2013","Alt.2013.2013","DAP.2013","ALT.2014","Alt.2013.2014","
     wide[,num.cols[i]] <- as.numeric(as.character(wide[,num.cols[i]]))  
   }
 
+### Generate new columns
 wide$GROWTH <- wide$ALT.2014 - wide$ALT.2013
 wide$DAYS <- as.numeric(wide$DATE.2014 - wide$DATE.2013)
 wide$RECRUIT <- ifelse(is.na(wide$STATUS.2013), 2014, NA)
 wide$SURVIVE <- ifelse(!is.na(wide$ALT.2013) & !is.na(wide$ALT.2014), 1, ifelse(wide$STATUS.2014 %in% 'new', NA, 0))
 
+### Reformat and save data
 data <- wide[,c('uID','SITE','SPP.2014','ALT.2013','ALT.2014','STATUS.2014','GROWTH','DAYS','SURVIVE','CODIGOS.2013','CODIGOS.2014')]
 names(data) <- c('uID','SITE','SPCODE','HT13','HT14','STATUS14','GROWTH','DAYS','ALIVE','code13','code14')
 data <- droplevels(data)
@@ -198,11 +194,9 @@ data <- droplevels(data)
 save(data, file='panama_seedlings/Gradient_seedling_data_10.29.15.RDA')
 
 
-######################
-######################
-######################
-
-
+############################
+### Exploratory plotting ###
+############################
 
 pdf(file='panama_seedlings/Preliminary_plots.pdf')
 
