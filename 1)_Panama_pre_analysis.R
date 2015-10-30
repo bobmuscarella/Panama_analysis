@@ -497,10 +497,23 @@ tdata <- tdata[tdata$plot != 'lfdp',]
 ### Remove palms (doing it this way to keep them for survival...)
 tdata$growth[tdata$palm==T] <- NA
 
-### What to do about growth outliers? Remove > 5 sd ...
+### What to do about growth outliers? 
+### One option is the remove stems that grew more than a fixed amount (e.g. > 5 sd )
 growth.include <- abs(tdata$growth) < sd(tdata$growth, na.rm=T) * 5
 growth.include <- ifelse(is.na(growth.include), FALSE, growth.include)
 tdata$Growth.Include <- growth.include
+
+### Another is to follow Condit et al. 2004...
+# 1. Negative growth must be smaller than  AND
+# 2. Postive growth must be less than 75 mm / yr
+tdata$Growth.Include.2 <- ((tdata$growth > 4 * (-(0.0062 * tdata$dbh + 0.904))) & (tdata$growth < 75))
+tdata$Growth.Include.2 <- ifelse(is.na(tdata$Growth.Include.2), FALSE, tdata$Growth.Include.2)
+
+# sum(!tdata$Growth.Include, na.rm=T)
+# sum(!tdata$Growth.Include.2, na.rm=T)
+# hist(tdata$growth[tdata$Growth.Include==T & tdata$Growth.Include.2==F], breaks=100)
+# hist(tdata$growth[tdata$Growth.Include==F & tdata$Growth.Include.2==T], breaks=100)
+
 
 #################
 ### DATA PREP ###
@@ -569,7 +582,7 @@ tdata$log.unci.hmax.z <- unlist(tapply(tdata$log.unci.hmax, tdata$plot, z.score)
 # tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
 # tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
 
-save(tdata, file='Panama_AnalysisData_10.26.15.RDA')
+save(tdata, file='Panama_AnalysisData_10.30.15.RDA')
 
 
 
