@@ -22,7 +22,7 @@ if(pc==T){
 		setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
 		}
 
-load("Panama_AnalysisData_10.26.15.RDA")
+load("Panama_AnalysisData_10.30.15.RDA")
 d <- tdata
 
 ###########################
@@ -32,7 +32,7 @@ rownames(d) <- NULL
 
 # Remove growth NA
 d <- d[!is.na(d$growth),]
-d <- d[tdata$Growth.Include==TRUE,]
+d <- d[d$Growth.Include.2 == TRUE,]
 
 # Change names for ease
 names(d)[names(d)=='WSG'] <- 'wsg'
@@ -52,18 +52,26 @@ d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z',
 # CHOOSE A PLOT TO WORK WITH ONE PLOT AT A TIME...
 plots <- c('cocoli', 'bci', 'sherman')
 
-for(p in 1) {
+#for(p in 1) {
+p=1
 
-	focal.plot <- plots[p]
+  focal.plot <- plots[p]
 	d <- d[d$plot %in% focal.plot,]
 
-	for (i in 1:length(traits)) {
-
-		trait <- traits[i]
+#	for (i in 1:length(traits)) {
+i=1
+		
+    trait <- traits[i]
 		
 		# Remove species with NA for trait value
 		d <- d[!is.na (d[,trait]),]  					
-		
+
+
+# SAMPLE DATA FOR EXPLORATORY...
+# d <- d[sample(1:nrow(d), 1000),]
+# d <- droplevels(d)
+# rownames(d) <- NULL
+
 		# Make a speciesxplot column for correct indexing...
 		d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))	
 	
@@ -129,7 +137,7 @@ cat(" model {
 	beta.3[j] ~ dnorm(mu.beta[3], tau[4])				# plot x species-specific triat-hood effect
 	beta.4[j] ~ dnorm(mu.beta[4], tau[5])				# plot x species-specific size effect
 	beta.5[j] ~ dnorm(mu.beta[5], tau[6])				# plot x species-specific effect of unk trait neighbs
-	beta.6[j] ~ dnorm(mu.beta[6], tau[7])				# plot x species-specific effect of dbh * nci interaction
+	beta.6[j] ~ dnorm(mu.beta[6] + beta.t[3] * trait[j], tau[7])				# plot x species-specific effect of dbh * nci interaction
     }
         
     for( i.a in 1:nindiv ) {
@@ -137,7 +145,8 @@ cat(" model {
     }
     
     beta.t[1] ~ dnorm(0, 1E-4)
-	beta.t[2] ~ dnorm(0, 1E-4)
+	  beta.t[2] ~ dnorm(0, 1E-4)
+    beta.t[3] ~ dnorm(0, 1E-4)
 
     mu.beta[1] ~ dnorm(0, 1E-4)
     mu.beta[2] ~ dnorm(0, 1E-4)
@@ -163,6 +172,64 @@ sink()
 
 
 
+
+
+if(pc==T){ 
+  setwd("K:/Bob/Panama/MODELS") 
+} else {
+  setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+}
+
+sink("growth_2level_NCI_NCIXDBH.bug")
+
+cat(" model {
+    
+    for( i in 1:ntree ) {
+    
+    growth[i] ~ dnorm(mu[i], tau[1])
+    
+    mu[i] <- exp(z[i])
+    
+    z[i] <- beta.1[species[i]] 				  # grand mean of performance
+    + beta.2[species[i]] * (nci[i]) 		# biomass nci
+    + beta.3[species[i]] * (dbh[i])			# size-specific effect
+    + beta.4[species[i]] * (nci[i]) * (dbh[i])	# interaction between size and crowding
+    + indiv.effect[indiv[i]]  		      # to account for repeat sample of individuals
+    }
+    
+    for( j in 1:nspecies ) {
+    beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[2])	# species-specific average growth
+    beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[3])	# speces-specific crowding effect
+    beta.3[j] ~ dnorm(mu.beta[3], tau[4])				# plot x species-specific size effect
+    beta.4[j] ~ dnorm(mu.beta[4] + beta.t[3] * trait[j], tau[5])				# plot x species-specific effect of dbh * nci interaction
+    }
+    
+    for( i.a in 1:nindiv ) {
+    indiv.effect[i.a] ~ dnorm(0, tau[6])
+    }
+    
+    beta.t[1] ~ dnorm(0, 1E-4)
+    beta.t[2] ~ dnorm(0, 1E-4)
+    beta.t[3] ~ dnorm(0, 1E-4)
+    
+    mu.beta[1] ~ dnorm(0, 1E-4)
+    mu.beta[2] ~ dnorm(0, 1E-4)
+    mu.beta[3] ~ dnorm(0, 1E-4)
+    mu.beta[4] ~ dnorm(0, 1E-4)
+    
+    tau[1] ~ dgamma(1E-3, 1E-3)
+    tau[2] ~ dgamma(1E-3, 1E-3)
+    tau[3] ~ dgamma(1E-3, 1E-3)
+    tau[4] ~ dgamma(1E-3, 1E-3)
+    tau[5] ~ dgamma(1E-3, 1E-3)
+    tau[6] ~ dgamma(1E-3, 1E-3)
+    
+    sigma <- 1 / sqrt(tau)
+    
+    }"
+, fill=TRUE)
+sink()
+
 ################################################
 ### Set initial values, monitors, iterations and run model ###
 ################################################
@@ -170,7 +237,7 @@ sink()
 # Set initial values
 inits <- function (){
 	list(
-	beta.t = rnorm(2),
+	beta.t = rnorm(3),
 	mu.beta = rnorm(6),
 	tau = rgamma(8, 1E-3, 1E-3) + 1E-5)
 	}
@@ -183,13 +250,18 @@ if(pc==T){
 
 
 # Set monitors
+# params <- c(paste("beta",1:4,sep='.'),"beta.t","mu.beta","sigma")
 params <- c("beta.t","mu.beta","sigma")
 
 file <- paste(trait, focal.plot, 'RDA', sep='.')
 print(paste('Started', file, 'at', Sys.time()))
 
 # Run model
-mod <- jagsUI::jags(data, inits, params, "growth_2level_NCI_TNCI_UNCI_NCIXDBH.bug", n.chains=3, n.adapt=5000, n.iter=60000, n.burnin=10000, n.thin=50, parallel=F)
+mod <- jagsUI::jags(data, inits, params, 
+                    "growth_2level_NCI_TNCI_UNCI_NCIXDBH.bug", 
+                    n.chains=3, n.adapt=5000, n.iter=20000, 
+                    n.burnin=10000, n.thin=50, parallel=F)
+
 
 if(pc==T){ 
 	setwd("K:/Bob/Panama/RESULTS") 
@@ -202,6 +274,49 @@ save(mod, file=file)
 
 	}
 }
+
+
+
+
+
+
+# Set initial values
+inits <- function (){
+  list(
+    indiv.effect = rnorm(data$nindiv, 0, 1E-3),
+    beta.t = rnorm(2),
+    mu.beta = rnorm(4),
+    tau = rgamma(6, 1E-3, 1E-3) + 1E-5)
+}
+
+if(pc==T){ 
+  setwd("K:/Bob/Panama/MODELS") 
+} else {
+  setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+}
+
+# Set monitors
+params <- c(paste("beta",1:4,sep='.'),"beta.t","mu.beta","sigma")
+#params <- c("beta.t","mu.beta","sigma")
+
+file <- paste(trait, focal.plot, 'RDA', sep='.')
+print(paste('Started', file, 'at', Sys.time()))
+
+# Run model
+mod <- jagsUI::jags(data, inits, params, 
+                    "growth_2level_NCI_NCIXDBH.bug", 
+                    n.chains=3, n.adapt=1000, n.iter=5000,
+                    n.burnin=1000, n.thin=5, parallel=F)
+mod
+
+mod <- update(mod, n.iter=10000)
+
+mod
+
+plot(mod)
+
+str(mod)
+
 
 
 
