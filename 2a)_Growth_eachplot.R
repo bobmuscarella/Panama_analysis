@@ -203,7 +203,7 @@ cat(" model {
     beta.3[j] ~ dnorm(mu.beta[3], tau[4])				# plot x species-specific size effect
     beta.4[j] ~ dnorm(mu.beta[4] + beta.t[3] * trait[j], tau[5])				# plot x species-specific effect of dbh * nci interaction
     }
-    
+
     for( i.a in 1:nindiv ) {
     indiv.effect[i.a] ~ dnorm(0, tau[6])
     }
@@ -263,7 +263,13 @@ mod <- jagsUI::jags(data, inits, params,
                     n.burnin=10000, n.thin=50, parallel=F)
 
 
-if(pc==T){ 
+# For trace/density plot of a single parameter...
+plot(mod$samples[,'beta.t[1]'])
+plot(mod)
+
+
+
+if(pc==T){
 	setwd("K:/Bob/Panama/RESULTS") 
 	} else {
 		setwd("/Users/Bob/Projects/Postdoc/Panama/RESULTS")
