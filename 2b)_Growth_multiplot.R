@@ -3,27 +3,37 @@
 #######################################
 library(jagsUI)
 
+### Z-TRANSFORM DATA
+z.score <- function (data) {
+  xm<- mean (data, na.rm=TRUE)
+  xsd<-sd(data, na.rm=TRUE)
+  xtrans<-(data-xm)/(2*xsd)	
+}
+
+### Running on PC???
+pc <- FALSE
+
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
-# if running on the PC:
-setwd("K:/Bob/Panama/DATA")
+if(pc==T){ 
+  setwd("K:/Bob/Panama/DATA") 
+    } else {
+      setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+  }
 
-# if running on my Mac
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-
-# load("alldata_NCI.RDA")
-load("Panama_AnalysisData_10.26.15.RDA")
+load("Panama_AnalysisData_10.30.15.RDA")
 d <- tdata
 
-###########################
+
+#################################
 #### Prepare data for input  ####
-###########################
+#################################
 rownames(d) <- NULL
 
 # Remove growth NA
 d <- d[!is.na(d$growth),]
-d <- d[tdata$Growth.Include==TRUE,]
+d <- d[d$Growth.Include.2 == TRUE,]
 
 # Change names for ease
 names(d)[names(d)=='WSG'] <- 'wsg'
@@ -36,15 +46,23 @@ names(d)[names(d)=='HEIGHT_AVG'] <- 'hmax'
 traits <- c('wsg','log.ldmc','log.lma','log.seed','hmax')
 
 d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z', 
-				traits, 
-				paste('log.tnci',traits,sep='.'), 
-				paste('log.unci',traits,sep='.'))]
+          traits, 
+          paste('log.tnci', traits, 'z', sep='.'), 
+          paste('log.unci', traits, 'z', sep='.'))]
 
-i <- 1
+
+#	for (i in 1:length(traits)) {
+i=1
+
 trait <- traits[i]
 
 # Remove species with NA for trait value
-d <- d[!is.na (d[,trait]),]  					
+d <- d[!is.na (d[,trait]),]
+
+# SAMPLE DATA FOR EXPLORATORY...
+# d <- d[sample(1:nrow(d), 1000),]
+# d <- droplevels(d)
+# rownames(d) <- NULL
 
 # Make a speciesxplot column for correct indexing...
 d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))	
@@ -63,27 +81,98 @@ d <- d[order(d$plot, d$spcode, d$id, d$census),]
 #### Organize the input data ####
 #################################
 data = list (
-	ntree = nrow(d),
-	nindiv = length(unique(d$id)),
-	nspecies = length(levels(d$speciesxplot)),
-	nplot = length(levels(as.factor(d$plot))),
-	growth = as.numeric(d$growth.z),
-	nci = as.numeric(d[,'log.nci.z']),
-	tnci = as.numeric(d[,paste('log.tnci.', trait, sep='')]),
-	unci = as.numeric(d[,paste('log.unci.', trait, sep='')]),
-	dbh = as.numeric(d$log.dbh.z),
-	trait = traitdata,
-	indiv = d$indiv,
-	species = as.numeric(d$speciesxplot),
-	plot = as.numeric(tapply(as.numeric(as.factor(d$plot)), d$speciesxplot, mean))
-	)
+  ntree = nrow(d),
+  nindiv = length(unique(d$id)),
+  nplot = length(unique(d$plot)),
+  nspecies = length(levels(d$speciesxplot)),
+  growth = as.numeric(d$growth.z),
+  nci = as.numeric(d[,'log.nci.z']),
+#  tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
+#  unci = as.numeric(d[,paste('log.unci.', trait, '.z', sep='')]),
+  dbh = as.numeric(d$log.dbh.z),
+  trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
+  indiv = d$indiv,
+  species = as.numeric(d$speciesxplot),
+  plot = as.numeric(as.factor(d$plot))
+)
 
 
 ##############################
 #### Write the model file ####
 ##############################
-setwd("K:/Bob/Panama/MODELS")
-setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+if(pc==T){ 
+  setwd("K:/Bob/Panama/MODELS") 
+    } else {
+      setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+  }
+
+
+sink("growth_3level_NCI_NCIXDBH.bug")
+cat(" model {
+    
+    for( i in 1:ntree ) {
+    
+    growth[i] ~ dnorm(mu[i], tau[1])
+    
+    mu[i] <- exp(z[i])
+    
+    z[i] <- beta.1[species[i]]
+    + beta.2[species[i]] * (nci[i])
+    + beta.3[species[i]] * (dbh[i])
+    + beta.4[species[i]] * (nci[i]) * (dbh[i])
+    + indiv.effect[indiv[i]]
+    }
+    
+    for( j in 1:nspecies ) {
+    beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[2])
+    beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[3])
+    beta.3[j] ~ dnorm(beta.t.3[plot[j]], tau[4])
+    beta.4[j] ~ dnorm(mu.beta[3] + beta.t.4[plot[j]] * trait[j], tau[5])
+
+#    beta.3[j] ~ dnorm(mu.beta[3], tau[4])
+#    beta.4[j] ~ dnorm(mu.beta[4] + beta.t.3[plot[j]] * trait[j], tau[5])
+    }
+    
+    for( k in 1:nplot ) {
+    beta.t.1[k] ~ dnorm(beta.t[1], tau[6])
+    beta.t.2[k] ~ dnorm(beta.t[2], tau[7])
+    beta.t.3[k] ~ dnorm(beta.t[3], tau[8])
+    beta.t.4[k] ~ dnorm(beta.t[4], tau[9])
+    }
+    
+    for( i.a in 1:nindiv ) {
+    indiv.effect[i.a] ~ dnorm(0, tau[10])
+    }
+    
+    beta.t[1] ~ dnorm(0, 1E-4)
+    beta.t[2] ~ dnorm(0, 1E-4)
+    beta.t[3] ~ dnorm(0, 1E-4)
+    beta.t[4] ~ dnorm(0, 1E-4)
+    
+    mu.beta[1] ~ dnorm(0, 1E-4)
+    mu.beta[2] ~ dnorm(0, 1E-4)
+    mu.beta[3] ~ dnorm(0, 1E-4)
+#    mu.beta[4] ~ dnorm(0, 1E-4)
+
+    tau[1] ~ dgamma(1E-3, 1E-3)
+    tau[2] ~ dgamma(1E-3, 1E-3)
+    tau[3] ~ dgamma(1E-3, 1E-3)
+    tau[4] ~ dgamma(1E-3, 1E-3)
+    tau[5] ~ dgamma(1E-3, 1E-3)
+    tau[6] ~ dgamma(1E-3, 1E-3)
+    tau[7] ~ dgamma(1E-3, 1E-3)
+    tau[8] ~ dgamma(1E-3, 1E-3)
+    tau[9] ~ dgamma(1E-3, 1E-3)
+    tau[10] ~ dgamma(1E-3, 1E-3)
+    
+    sigma <- 1 / sqrt(tau)
+    }
+    ", fill=TRUE)
+sink()
+
+
+
+
 
 sink("growth_3level_NCI_TNCI_UNCI_NCIXDBH.bug")
 cat(" model {
@@ -159,39 +248,56 @@ sink()
 ##########################
 ### Set initial values ###
 ##########################
-setwd("K:/Bob/Panama/MODELS")
-setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+if(pc==T){
+  setwd("K:/Bob/Panama/MODELS") 
+    } else {
+      setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
+  }
+
 
 # Set initial
 inits <- function (){
-	list(
-	beta.t = rnorm(6),
-	beta.t.1 = rnorm(1),
-	beta.t.2 = rnorm(1),
-	beta.t.3 = rnorm(1),
-	beta.t.4 = rnorm(1),
-	beta.t.5 = rnorm(1),
-	beta.t.6 = rnorm(1),
-	mu.beta = rnorm(2),
-	tau = rgamma(14, 0.1, 1E-3) + 1E-10 )
-	}
+  list(
+    beta.t = rnorm(4),
+    mu.beta = rnorm(3),
+    tau = rgamma(10, 0.1, 1E-3) + 1E-10 )
+}
 
 
 # Set monitors
-params <- c("beta.t.1","beta.t.2","beta.t.3","beta.t.4","beta.t.5","beta.t.6","beta.t","mu.beta","sigma")
+# params <- c(paste('beta',1:4,sep='.'),"beta.t","mu.beta","sigma")
+params <- c(paste('beta',1:4,sep='.'), paste('beta.t',1:4,sep='.'), "beta.t", "mu.beta", "sigma")
+
+
 
 # Run model
-fullmod <- jagsUI::jags(data, inits, params, 
-                    "growth_3level_NCI_TNCI_UNCI_NCIXDBH.bug", 
-                    n.chains=3, n.adapt=5000, n.iter=25000, 
-                    n.burnin=10000, n.thin=5, parallel=TRUE)
+file <- paste(trait, 'RDA', sep='.')
+print(paste('Started', file, 'at', Sys.time()))
 
-fullmod
+adapt <- 500
+iter <- 1000
+burnin <- 500
+thin <- 1
+
+mod <- jagsUI::jags(data, inits, params, 
+                    "growth_3level_NCI_NCIXDBH.bug", 
+                    n.chains=3, n.adapt=adapt, n.iter=iter, 
+                    n.burnin=burnin, n.thin=thin, parallel=F)
+
+mod
 
 # Update model
 paste("Start at:", Sys.time())
-update(fullmod, n.iter=50000)
+mod <- update(mod, n.iter=1000)
 paste("Finish at:", Sys.time())
+
+
+
+plot(mod$samples[,c('beta.t.1[1]','beta.t.1[2]','beta.t.1[3]')])
+
+
+
+
 
 
 
