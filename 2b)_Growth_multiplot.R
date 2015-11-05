@@ -31,18 +31,30 @@ d <- tdata
 #################################
 rownames(d) <- NULL
 
-# Remove growth NA
+### Remove growth NA
 d <- d[!is.na(d$growth),]
 d <- d[d$Growth.Include.2 == TRUE,]
 
-# Change names for ease
+
+### REMOVE SO MANY ZERO GROWTHS
+# d <- d[d$growth != 0,]
+
+### SAMPLE THE BCI DATA FOR SPEED
+# bci <- d[d$plot %in% 'bci',]
+# bci <- bci[sample(1:nrow(bci), 8000),]
+# d <- d[!d$plot %in% 'bci',]
+# d <- rbind(bci, d)
+# table(d$plot)
+
+
+### Change names for ease
 names(d)[names(d)=='WSG'] <- 'wsg'
 names(d)[names(d)=='log.LDMC_AVI'] <- 'log.ldmc'
 names(d)[names(d)=='log.LMALEAF_AVI'] <- 'log.lma'
 names(d)[names(d)=='log.SEED_DRY'] <- 'log.seed'
 names(d)[names(d)=='HEIGHT_AVG'] <- 'hmax'
 
-# Work with one trait at a time....
+### Work with one trait at a time....
 traits <- c('wsg','log.ldmc','log.lma','log.seed','hmax')
 
 d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z', 
@@ -56,24 +68,24 @@ i=1
 
 trait <- traits[i]
 
-# Remove species with NA for trait value
+### Remove species with NA for trait value
 d <- d[!is.na (d[,trait]),]
 
 # SAMPLE DATA FOR EXPLORATORY...
-# d <- d[sample(1:nrow(d), 1000),]
+# d <- d[sample(1:nrow(d), 5000),]
 # d <- droplevels(d)
 # rownames(d) <- NULL
 
-# Make a speciesxplot column for correct indexing...
+### Make a speciesxplot column for correct indexing...
 d$speciesxplot <- as.factor(paste(d$plot, d$spcode, sep='.'))	
 
-# Drop factors for correct indexing
+### Drop factors for correct indexing
 d <- droplevels(d)						
 
-# Create an individual ID
+### Create an individual ID
 d$indiv <- as.numeric(as.factor(d$id))				
 
-# Order for correct indexing
+### Order for correct indexing
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
 
 
@@ -93,9 +105,8 @@ data = list (
   trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
   indiv = d$indiv,
   species = as.numeric(d$speciesxplot),
-  plot = as.numeric(as.factor(d$plot))
+  plot = as.numeric(as.factor(substring(names(tapply(d[,trait], d$speciesxplot, mean)),1,3)))
 )
-
 
 ##############################
 #### Write the model file ####
@@ -106,31 +117,26 @@ if(pc==T){
       setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
   }
 
-
 sink("growth_3level_NCI_NCIXDBH.bug")
 cat(" model {
     
     for( i in 1:ntree ) {
     
     growth[i] ~ dnorm(mu[i], tau[1])
-    
     mu[i] <- exp(z[i])
     
     z[i] <- beta.1[species[i]]
     + beta.2[species[i]] * (nci[i])
     + beta.3[species[i]] * (dbh[i])
-    + beta.4[species[i]] * (nci[i]) * (dbh[i])
+    + beta.4[species[i]] * (nci[i] * dbh[i])
     + indiv.effect[indiv[i]]
     }
     
     for( j in 1:nspecies ) {
     beta.1[j] ~ dnorm(mu.beta[1] + beta.t.1[plot[j]] * trait[j], tau[2])
     beta.2[j] ~ dnorm(mu.beta[2] + beta.t.2[plot[j]] * trait[j], tau[3])
-    beta.3[j] ~ dnorm(beta.t.3[plot[j]], tau[4])
-    beta.4[j] ~ dnorm(mu.beta[3] + beta.t.4[plot[j]] * trait[j], tau[5])
-
-#    beta.3[j] ~ dnorm(mu.beta[3], tau[4])
-#    beta.4[j] ~ dnorm(mu.beta[4] + beta.t.3[plot[j]] * trait[j], tau[5])
+    beta.3[j] ~ dnorm(mu.beta[3] + beta.t.3[plot[j]], tau[4])
+    beta.4[j] ~ dnorm(mu.beta[4] + beta.t.4[plot[j]] * trait[j], tau[5])
     }
     
     for( k in 1:nplot ) {
@@ -143,32 +149,31 @@ cat(" model {
     for( i.a in 1:nindiv ) {
     indiv.effect[i.a] ~ dnorm(0, tau[10])
     }
-    
+
     beta.t[1] ~ dnorm(0, 1E-4)
     beta.t[2] ~ dnorm(0, 1E-4)
     beta.t[3] ~ dnorm(0, 1E-4)
     beta.t[4] ~ dnorm(0, 1E-4)
-    
+
     mu.beta[1] ~ dnorm(0, 1E-4)
     mu.beta[2] ~ dnorm(0, 1E-4)
     mu.beta[3] ~ dnorm(0, 1E-4)
-#    mu.beta[4] ~ dnorm(0, 1E-4)
+    mu.beta[4] ~ dnorm(0, 1E-4)
 
-    tau[1] ~ dgamma(1E-3, 1E-3)
-    tau[2] ~ dgamma(1E-3, 1E-3)
-    tau[3] ~ dgamma(1E-3, 1E-3)
-    tau[4] ~ dgamma(1E-3, 1E-3)
-    tau[5] ~ dgamma(1E-3, 1E-3)
-    tau[6] ~ dgamma(1E-3, 1E-3)
-    tau[7] ~ dgamma(1E-3, 1E-3)
-    tau[8] ~ dgamma(1E-3, 1E-3)
-    tau[9] ~ dgamma(1E-3, 1E-3)
-    tau[10] ~ dgamma(1E-3, 1E-3)
-    
+    for ( t in 1:10 ) {
+    	tau[t] ~ dgamma(1E-3, 1E-3)
+  	}
+
     sigma <- 1 / sqrt(tau)
-    }
-    ", fill=TRUE)
+}
+", fill=TRUE)
 sink()
+
+
+
+
+
+
 
 
 
@@ -259,32 +264,32 @@ if(pc==T){
 inits <- function (){
   list(
     beta.t = rnorm(4),
-    mu.beta = rnorm(3),
-    tau = rgamma(10, 0.1, 1E-3) + 1E-10 )
+    mu.beta = rnorm(4),
+    tau = rgamma(10, 1E3, 1E3))
 }
 
 
 # Set monitors
-# params <- c(paste('beta',1:4,sep='.'),"beta.t","mu.beta","sigma")
-params <- c(paste('beta',1:4,sep='.'), paste('beta.t',1:4,sep='.'), "beta.t", "mu.beta", "sigma")
-
-
+params <- c(paste('beta.t',1:4,sep='.'),"beta.t","mu.beta", "sigma")
 
 # Run model
 file <- paste(trait, 'RDA', sep='.')
 print(paste('Started', file, 'at', Sys.time()))
 
-adapt <- 500
-iter <- 1000
-burnin <- 500
+adapt <- 50
+iter <- 100
+burnin <- 50
 thin <- 1
 
-mod <- jagsUI::jags(data, inits, params, 
+testmod <- jagsUI::jags(data, inits, params, 
                     "growth_3level_NCI_NCIXDBH.bug", 
                     n.chains=3, n.adapt=adapt, n.iter=iter, 
                     n.burnin=burnin, n.thin=thin, parallel=F)
 
-mod
+testmod
+
+
+
 
 # Update model
 paste("Start at:", Sys.time())
@@ -293,7 +298,7 @@ paste("Finish at:", Sys.time())
 
 
 
-plot(mod$samples[,c('beta.t.1[1]','beta.t.1[2]','beta.t.1[3]')])
+plot(testmod$samples[,c('beta.t[1]','beta.t[2]','beta.t[3]')])
 
 
 
