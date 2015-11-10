@@ -23,40 +23,40 @@ if(pc==T){
 }
 
 load("Panama_AnalysisData_10.30.15.RDA")
-d <- tdata
 
 ###########################
 #### Prepare data for input  ####
 ###########################
-rownames(d) <- NULL
+rownames(tdata) <- NULL
 
 # Remove growth NA
-d <- d[!is.na(d$growth),]
-d <- d[d$Growth.Include.2 == TRUE,]
+tdata <- tdata[!is.na(tdata$growth),]
+tdata <- tdata[tdata$Growth.Include.2 == TRUE,]
 
 # Change names for ease
-names(d)[names(d)=='WSG'] <- 'wsg'
-names(d)[names(d)=='log.LDMC_AVI'] <- 'log.ldmc'
-names(d)[names(d)=='log.LMALEAF_AVI'] <- 'log.lma'
-names(d)[names(d)=='log.SEED_DRY'] <- 'log.seed'
-names(d)[names(d)=='HEIGHT_AVG'] <- 'hmax'
+names(tdata)[names(tdata)=='WSG'] <- 'wsg'
+names(tdata)[names(tdata)=='log.LDMC_AVI'] <- 'log.ldmc'
+names(tdata)[names(tdata)=='log.LMALEAF_AVI'] <- 'log.lma'
+names(tdata)[names(tdata)=='log.SEED_DRY'] <- 'log.seed'
+names(tdata)[names(tdata)=='HEIGHT_AVG'] <- 'hmax'
 
 # Work with one trait at a time....
 traits <- c('wsg','log.ldmc','log.lma','log.seed','hmax')
 
-d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z', 
+tdata <- tdata[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z', 
           traits, 
           paste('log.tnci', traits, 'z', sep='.'), 
           paste('log.unci', traits, 'z', sep='.'))]
 
+tdata$plot <- substring(tdata$plot, 1, 3)
+     
 # CHOOSE A PLOT TO WORK WITH ONE PLOT AT A TIME...
-plots <- c('cocoli', 'bci', 'sherman')
+plots <- c('bci','coc','she')
 
-#for(p in 1) {
-p=2
-
+for(p in 1:3) {
+  
 focal.plot <- plots[p]
-d <- d[d$plot %in% focal.plot,]
+d <- tdata[tdata$plot %in% focal.plot,]
 
 #	for (i in 1:length(traits)) {
 i=1
@@ -64,8 +64,7 @@ i=1
 trait <- traits[i]
 
 # Remove species with NA for trait value
-d <- d[!is.na (d[,trait]),]  					
-
+d <- d2[!is.na (d2[,trait]),]  					
 
 # SAMPLE DATA FOR EXPLORATORY...
 # d <- d[sample(1:nrow(d), 1000),]
@@ -112,6 +111,53 @@ if(pc==T){
   setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 }
 
+sink("growth_2level_NCI_NCIXDBH.bug")
+
+cat(" model {
+    
+    for( i in 1:ntree ) {
+    
+    growth[i] ~ dnorm(mu[i], tau[1])
+    mu[i] <- exp(z[i])
+    
+    z[i] <- beta.1[species[i]] 				          # grand mean of performance
+    + beta.2[species[i]] * (nci[i]) 		        # biomass nci
+    + beta.3[species[i]] * (dbh[i])			        # size-specific effect
+    + beta.4[species[i]] * (nci[i]) * (dbh[i])	# interaction between size and crowding
+    + indiv.effect[indiv[i]]  		              # to account for repeat sample of individuals
+    }
+    
+    for( j in 1:nspecies ) {
+    beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[2])	# species-specific average growth
+    beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[3])	# speces-specific crowding effect
+    beta.3[j] ~ dnorm(mu.beta[3], tau[4])				                  # plot x species-specific size effect
+    beta.4[j] ~ dnorm(mu.beta[4] + beta.t[3] * trait[j], tau[5])	# plot x species-specific effect of dbh * nci interaction
+    }
+    
+    for( i.a in 1:nindiv ) {
+    indiv.effect[i.a] ~ dnorm(0, tau[6])
+    }
+    
+    for( b in 1:3 ) {
+    beta.t[b] ~ dnorm(0, 1E-4)
+    }
+    
+    for( m in 1:4 ) {
+    mu.beta[m] ~ dnorm(0, 1E-4)
+    }
+    
+    for( t in 1:6 ) {
+    tau[t] ~ dgamma(1E-3, 1E-3)
+    }
+    
+    sigma <- 1 / sqrt(tau)
+    
+    }"
+, fill=TRUE)
+sink()
+
+
+
 sink("growth_2level_NCI_TNCI_UNCI_NCIXDBH.bug")
 
 cat(" model {
@@ -122,7 +168,7 @@ cat(" model {
     
     mu[i] <- exp(z[i])
     
-    z[i] <- indiv.effect[indiv[i]]			# to account for repeat sample of individuals
+    z[i] <- indiv.effect[indiv[i]]  		# to account for repeat sample of individuals
     + beta.1[species[i]] 				# grand mean of performance
     + beta.2[species[i]] * (nci[i]) 		# biomass nci
     + beta.3[species[i]] * (tnci[i]) 		# absolute trait difference nci
@@ -171,61 +217,6 @@ cat(" model {
 sink()
 
 
-
-
-
-if(pc==T){ 
-  setwd("K:/Bob/Panama/MODELS") 
-} else {
-  setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
-}
-
-sink("growth_2level_NCI_NCIXDBH.bug")
-
-cat(" model {
-    
-    for( i in 1:ntree ) {
-    
-    growth[i] ~ dnorm(mu[i], tau[1])
-    mu[i] <- exp(z[i])
-    
-    z[i] <- beta.1[species[i]] 				          # grand mean of performance
-    + beta.2[species[i]] * (nci[i]) 		        # biomass nci
-    + beta.3[species[i]] * (dbh[i])			        # size-specific effect
-    + beta.4[species[i]] * (nci[i]) * (dbh[i])	# interaction between size and crowding
-    + indiv.effect[indiv[i]]  		              # to account for repeat sample of individuals
-    }
-    
-    for( j in 1:nspecies ) {
-    beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[2])	# species-specific average growth
-    beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[3])	# speces-specific crowding effect
-    beta.3[j] ~ dnorm(mu.beta[3], tau[4])				                  # plot x species-specific size effect
-    beta.4[j] ~ dnorm(mu.beta[4] + beta.t[3] * trait[j], tau[5])	# plot x species-specific effect of dbh * nci interaction
-    }
-    
-    for( i.a in 1:nindiv ) {
-    indiv.effect[i.a] ~ dnorm(0, tau[6])
-    }
-    
-    beta.t[1] ~ dnorm(0, 1E-4)
-    beta.t[2] ~ dnorm(0, 1E-4)
-    beta.t[3] ~ dnorm(0, 1E-4)
-    
-    mu.beta[1] ~ dnorm(0, 1E-4)
-    mu.beta[2] ~ dnorm(0, 1E-4)
-    mu.beta[3] ~ dnorm(0, 1E-4)
-    mu.beta[4] ~ dnorm(0, 1E-4)
-    
-    for( t in 1:6 ) {
-    tau[t] ~ dgamma(1E-3, 1E-3)
-    }
-    
-    sigma <- 1 / sqrt(tau)
-    
-    }"
-, fill=TRUE)
-sink()
-
 ################################################
 ### Set initial values, monitors, iterations and run model ###
 ################################################
@@ -248,25 +239,64 @@ if(pc==T){
 # params <- c(paste("beta",1:4,sep='.'),"beta.t","mu.beta","sigma")
 params <- c("beta.t","mu.beta","sigma")
 
-file <- paste(trait, focal.plot, 'RDA', sep='.')
-print(paste('Started', file, 'at', Sys.time()))
-
 # Run model
-adapt <- 500
+adapt <- 2000
 iter <- 5000
-burn <- 2500
-thin <- 2
+burn <- 3000
+thin <- 5
+chains <- 3
 
-bcimod <- jagsUI::jags(data, inits, params, 
-                       "growth_2level_NCI_NCIXDBH.bug", 
-                       n.chains=3, n.adapt=adapt, n.iter=iter, 
-                       n.burnin=burn, n.thin=thin, parallel=F)
+mod <- jagsUI::jags(data, inits, params, 
+                   "growth_2level_NCI_NCIXDBH.bug", 
+                    n.chains=chains, n.adapt=adapt, n.iter=iter, 
+                   n.burnin=burn, n.thin=thin, parallel=T)
 
-#shemod <- update(shemod, n.iter=500)
+for(i in 1:3) {
+  if(sum(unlist(mod$Rhat) > 1.1) > 0){
+    mod <- update(mod, n.iter=1000)
+  }
+}
+  
+if(pc==T){ 
+  setwd("K:/Bob/Panama/RESULTS") 
+} else {
+  setwd("/Users/Bob/Projects/Postdoc/Panama/RESULTS")
+}
+
+file <- paste(focal.plot, trait, 'growth_2level_NCI_NCIXDBH.RDA', sep="_")
+saveRDS(mod, file=file)
+
+}
 
 
-shemod
-cocmod
+# YOU CAN USE e.g. THIS TO READ THE OUTPUT...
+assign(paste(focal.plot,trait,sep='_'), readRDS(file))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # For trace/density plot of a single parameter...
 plot(mod$samples[,'beta.t[1]'])
@@ -335,15 +365,8 @@ mod <- jagsUI::jags(data, inits, params,
                     "growth_2level_NCI_NCIXDBH.bug", 
                     n.chains=3, n.adapt=1000, n.iter=5000,
                     n.burnin=1000, n.thin=5, parallel=F)
-mod
 
-mod <- update(mod, n.iter=10000)
 
-mod
-
-plot(mod)
-
-str(mod)
 
 
 

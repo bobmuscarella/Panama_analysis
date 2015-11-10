@@ -144,13 +144,16 @@ cat(" model {
     mu.beta.2[k] ~ dnorm(mu.beta[2], tau6[k])
     mu.beta.3[k] ~ dnorm(mu.beta[3], tau7[k])
     mu.beta.4[k] ~ dnorm(mu.beta[4], tau8[k])
-    tau2[k] ~ dgamma(1E-3, 1E-3)
-    tau3[k] ~ dgamma(1E-3, 1E-3)
-    tau4[k] ~ dgamma(1E-3, 1E-3)
-    tau5[k] ~ dgamma(1E-3, 1E-3)
-    tau6[k] ~ dgamma(1E-3, 1E-3)
-    tau7[k] ~ dgamma(1E-3, 1E-3)
-    tau8[k] ~ dgamma(1E-3, 1E-3)
+    }
+
+    for( p in 1:nplot ) {
+    tau2[p] ~ dgamma(1E-3, 1E-3)
+    tau3[p] ~ dgamma(1E-3, 1E-3)
+    tau4[p] ~ dgamma(1E-3, 1E-3)
+    tau5[p] ~ dgamma(1E-3, 1E-3)
+    tau6[p] ~ dgamma(1E-3, 1E-3)
+    tau7[p] ~ dgamma(1E-3, 1E-3)
+    tau8[p] ~ dgamma(1E-3, 1E-3)
     }
     
     for( i.a in 1:nindiv ) {
@@ -165,8 +168,8 @@ cat(" model {
     mu.beta[m] ~ dnorm(0, 1E-4)
     }
 
-    for ( t in 1:13 ) {
-    tau[t] ~ dgamma(1E-3, 1E-3)
+    for ( t in 1:6 ) {
+    tau1[t] ~ dgamma(1E-3, 1E-3)
     }
     
     sigma1 <- 1 / sqrt(tau1)
@@ -194,8 +197,8 @@ if(pc==T){
 # Set initial
 inits <- function (){
   list(
-    beta.t = rnorm(4),
-    mu.beta = rnorm(3),
+    beta.t = rnorm(3),
+    mu.beta = rnorm(4),
     tau1 = rgamma(6, 1E3, 1E3),
     tau2 = rgamma(3, 1E3, 1E3),
     tau3 = rgamma(3, 1E3, 1E3),
@@ -207,30 +210,61 @@ inits <- function (){
 }
 
 # Set monitors
-params <- c(paste('beta.t',1:4,sep='.'),"beta.t","mu.beta", "sigma")
+params <- c(paste('beta.t',1:3,sep='.'), paste('mu.beta',1:4,sep='.'),"beta.t","mu.beta", paste('sigma',1:8,sep=''))
 
 # Run model
-file <- paste(trait, 'RDA', sep='.')
-print(paste('Started', file, 'at', Sys.time()))
-
-adapt <- 100
-iter <- 1000
-burnin <- 500
-thin <- 2
+adapt <- 2500
+iter <- 10000
+burnin <- 5000
+thin <- 5
+chains <- 3
 
 mod <- jagsUI::jags(data, inits, params,
-                    "growth_3level_NCI_NCIXDBH.bug", 
-                    n.chains=3, n.adapt=adapt, n.iter=iter, 
-                    n.burnin=burnin, n.thin=thin, parallel=T)
+                    "growth_3level_Ptaus_NCI_NCIXDBH.bug", 
+                    n.chains=chains, n.adapt=adapt, n.iter=iter, 
+                    n.burnin=burnin, n.thin=thin, parallel=F)
 
-print(paste('Started', file, 'at', Sys.time()))
+mod
+plot(mod)
+
+
+
+x <- lapply(mod$samples, function(x)as.vector(x[,'beta.t[1]']))
+plot(x[[1]], type='l')
+points(x[[2]], type='l', col=2)
+points(x[[3]], type='l', col=3)
+
+
+plot(rep(1:length(x[[1]]), times=3), c(x[[1]],x[[2]],x[[3]]), col=1, type='l')
+
+plot(mod$samples[,'beta.t[1]'], ylim=c(-1,1))
 
 mod
 
 # Update model
 paste("Start at:", Sys.time())
-mod <- update(mod, n.iter=5000)
+mod <- update(mod, n.iter=1000)
 paste("Finish at:", Sys.time())
+
+
+
+
+
+pdf(file='growth_WSG_3L_Ptaus_NCI_NCIXDBH.bug')
+x <- cbind(unlist(mod$q50),unlist(mod$q2.5),unlist(mod$q97.5))
+x <- x[-nrow(x),]
+x <- x[-grep('sigma', rownames(x)),]
+col <- c(rep(2:4, times=7), rep(1, 100))
+pch <- ifelse(sign(x[,2])==sign(x[,3]), 16, 1)
+plot(x[,1],ylim=c(min(x), max(x)), pch=pch, axes=F, ylab='Std. Effect', xlab='', col=col, cex=2)
+segments(1:nrow(x), x[,2], 1:nrow(x), x[,3], col=col)
+abline(h=0,lty=2)
+axis(1, labels=rownames(x), at=1:nrow(x), las=2)
+axis(2); box()
+legend('bottomleft', pch=16, col=c(2:4,1), legend=c('bci','cocoli','sherman','pooled plots'), lty=1)
+mtext("Model: growth_WSG_3L_Ptaus_NCI_NCIXDBH",3)
+dev.off()
+
 
 
 
