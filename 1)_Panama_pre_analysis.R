@@ -487,10 +487,10 @@ tdata <- master
 #######################################
 # load("alldata_NCI.RDA")
 load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
+head(tdata)
 
 
-
-Full.Neigh.Fun <- function(i){   
+Full.Neigh.Fun <- function(i, tdata){   
   # If stem is not on the edge
   if(tdata$Not.Edge[i] == 1){
 
@@ -597,10 +597,29 @@ return(
 # samp <- sample(which(tdata$Not.Edge==T), 5)
 # tmp <- do.call('rbind', lapply(samp, Full.Neigh.Fun))
 
-nci <- do.call('rbind', lapply(samp, Full.Neigh.Fun))
+
+library(parallel)
+library(snow)
+
+tdata <- tdata[1:100,]
+tmp <- droplevels(tmp)
+
+cl <- makeCluster(7, type='SOCK')
+nci <- parLapply(cl, 1:nrow(tmp), Full.Neigh.Fun, tdata)
+stopCluster(cl)
+
+
+nci <- do.call('rbind', lapply(1:nrow(tdata), Full.Neigh.Fun))
 tdata <- cbind(tdata, nci)
 
 save(tdata, file="panama_NCI_Traits_11.13.15.RDA")
+
+
+## MACHINE 1
+
+
+
+
 
 
 ###############################
