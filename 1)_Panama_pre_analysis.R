@@ -2,7 +2,7 @@ library(sp)
 library(reshape)
 
 setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-
+setwd("K:/Bob/Panama/DATA")
 ############################################
 ### CHUNK 1 : BUILD PANAMA DATA FROM RAW ####
 ############################################
