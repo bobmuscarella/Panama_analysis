@@ -601,15 +601,12 @@ return(
 library(parallel)
 library(snow)
 
-tdata <- tdata[1:100,]
-tmp <- droplevels(tmp)
-
-cl <- makeCluster(7, type='SOCK')
-nci <- parLapply(cl, 1:nrow(tmp), Full.Neigh.Fun, tdata)
+cl <- makeCluster(8, type='SOCK')
+nci <- parLapply(cl, 1:nrow(tdata), Full.Neigh.Fun, tdata)
+nci <- do.call('rbind', nci)
 stopCluster(cl)
 
 
-nci <- do.call('rbind', lapply(1:nrow(tdata), Full.Neigh.Fun))
 tdata <- cbind(tdata, nci)
 
 save(tdata, file="panama_NCI_Traits_11.13.15.RDA")
