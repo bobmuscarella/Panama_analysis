@@ -488,9 +488,126 @@ tdata <- master
 # load("alldata_NCI.RDA")
 load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
 
+
+
+Full.Neigh.Fun <- function(i){   
+  # If stem is not on the edge
+  if(tdata$Not.Edge[i] == 1){
+
+    # Focal stem in row i
+    foc.tree <- tdata[i,] 
+    
+    # Gets neighboring stems within 20 meters and from the same census year
+    neighz <- tdata[(1:nrow(tdata))!=i 
+                    & sqrt((tdata$x - foc.tree$x)^2 + (tdata$y - foc.tree$y)^2) <= 20
+                    & tdata$census == foc.tree$census 
+                    & tdata$plot == foc.tree$plot,]
+    
+    # If some of the neighboring stems have the same coordinates as focal tree, add a slight offset
+    # Changes stems with same coordinates
+    if(sum(((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2) > 0){
+      neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] <- neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.01, 0.01)
+    }
+    
+    # Calculate NCI using DBH^2 and dist^-2
+    All.NCI <- sum(na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)))
+    neighzbigger <- neighz[neighz$dbh >= foc.tree$dbh,]
+    Big.NCI <- sum(na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)))
+
+    wsg.diff <- foc.tree[,'WSG'] - neighz[,'WSG']
+    lma.diff <- foc.tree[,'log.LMALEAF_AVI'] - neighz[,'log.LMALEAF_AVI']
+    ldmc.diff <- foc.tree[,'log.LDMC_AVI'] - neighz[,'log.LDMC_AVI']
+    ss.diff <- foc.tree[,'log.SEED_DRY'] - neighz[,'log.SEED_DRY']
+    hmax.diff <- foc.tree[,'HEIGHT_AVG'] - neighz[,'HEIGHT_AVG']
+    
+    All.NCI.wsg.h <- sum(wsg.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.wsg.a <- sum(abs(wsg.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.lma.h <- sum(lma.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.lma.a <- sum(abs(lma.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.ldmc.h <- sum(ldmc.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.ldmc.a <- sum(abs(ldmc.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.ss.h <- sum(ss.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.ss.a <- sum(abs(ss.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.hmax.h <- sum(hmax.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.hmax.a <- sum(abs(hmax.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    
+    wsg.diff.bigger <- foc.tree[,'WSG'] - neighzbigger[,'WSG']
+    lma.diff.bigger <- foc.tree[,'log.LMALEAF_AVI'] - neighzbigger[,'log.LMALEAF_AVI']
+    ldmc.diff.bigger <- foc.tree[,'log.LDMC_AVI'] - neighzbigger[,'log.LDMC_AVI']
+    ss.diff.bigger <- foc.tree[,'log.SEED_DRY'] - neighzbigger[,'log.SEED_DRY']
+    hmax.diff.bigger <- foc.tree[,'HEIGHT_AVG'] - neighzbigger[,'HEIGHT_AVG']
+    
+    Big.NCI.wsg.h <- sum(wsg.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.wsg.a <- sum(abs(wsg.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.lma.h <- sum(lma.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.lma.a <- sum(abs(lma.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.ldmc.h <- sum(ldmc.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.ldmc.a <- sum(abs(ldmc.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.ss.h <- sum(ss.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.ss.a <- sum(abs(ss.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.hmax.h <- sum(hmax.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+    Big.NCI.hmax.a <- sum(abs(hmax.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
+
+    All.NCI.wsg.a <- ifelse(is.na(foc.tree[,'WSG']), NA, All.NCI.wsg.a)
+    All.NCI.wsg.h <- ifelse(is.na(foc.tree[,'WSG']), NA, All.NCI.wsg.h)
+    Big.NCI.wsg.a <- ifelse(is.na(foc.tree[,'WSG']), NA, Big.NCI.wsg.a)
+    Big.NCI.wsg.h <- ifelse(is.na(foc.tree[,'WSG']), NA, Big.NCI.wsg.h)
+
+    All.NCI.lma.a <- ifelse(is.na(foc.tree[,'log.LMALEAF_AVI']), NA, All.NCI.lma.a)
+    All.NCI.lma.h <- ifelse(is.na(foc.tree[,'log.LMALEAF_AVI']), NA, All.NCI.lma.h)
+    Big.NCI.lma.a <- ifelse(is.na(foc.tree[,'log.LMALEAF_AVI']), NA, Big.NCI.lma.a)
+    Big.NCI.lma.h <- ifelse(is.na(foc.tree[,'log.LMALEAF_AVI']), NA, Big.NCI.lma.h)
+
+    All.NCI.ldmc.a <- ifelse(is.na(foc.tree[,'log.LDMC_AVI']), NA, All.NCI.ldmc.a)
+    All.NCI.ldmc.h <- ifelse(is.na(foc.tree[,'log.LDMC_AVI']), NA, All.NCI.ldmc.h)
+    Big.NCI.ldmc.a <- ifelse(is.na(foc.tree[,'log.LDMC_AVI']), NA, Big.NCI.ldmc.a)
+    Big.NCI.ldmc.h <- ifelse(is.na(foc.tree[,'log.LDMC_AVI']), NA, Big.NCI.ldmc.h)
+
+    All.NCI.ss.a <- ifelse(is.na(foc.tree[,'log.SEED_DRY']), NA, All.NCI.ss.a)
+    All.NCI.ss.h <- ifelse(is.na(foc.tree[,'log.SEED_DRY']), NA, All.NCI.ss.h)
+    Big.NCI.ss.a <- ifelse(is.na(foc.tree[,'log.SEED_DRY']), NA, Big.NCI.ss.a)
+    Big.NCI.ss.h <- ifelse(is.na(foc.tree[,'log.SEED_DRY']), NA, Big.NCI.ss.h)
+
+    All.NCI.hmax.a <- ifelse(is.na(foc.tree[,'HEIGHT_AVG']), NA, All.NCI.hmax.a)
+    All.NCI.hmax.h <- ifelse(is.na(foc.tree[,'HEIGHT_AVG']), NA, All.NCI.hmax.h)
+    Big.NCI.hmax.a <- ifelse(is.na(foc.tree[,'HEIGHT_AVG']), NA, Big.NCI.hmax.a)
+    Big.NCI.hmax.h <- ifelse(is.na(foc.tree[,'HEIGHT_AVG']), NA, Big.NCI.hmax.h)
+
+return(
+      as.data.frame(cbind(All.NCI, Big.NCI, 
+          All.NCI.wsg.h, All.NCI.wsg.a,
+          Big.NCI.wsg.h, Big.NCI.wsg.a,
+          All.NCI.lma.h, All.NCI.lma.a,
+          Big.NCI.lma.h, Big.NCI.lma.a,
+          All.NCI.ldmc.h, All.NCI.ldmc.a,
+          Big.NCI.ldmc.h, Big.NCI.ldmc.a,
+          All.NCI.ss.h, All.NCI.ss.a,
+          Big.NCI.ss.h, Big.NCI.ss.a,
+          All.NCI.hmax.h, All.NCI.hmax.a,
+          Big.NCI.hmax.h, Big.NCI.hmax.a
+          ))
+    )    
+    # For edge stems   
+  } else {
+    rep(NA, 22)
+  }  
+}
+
+# TEST THE FUNCTION
+# samp <- sample(which(tdata$Not.Edge==T), 5)
+# tmp <- do.call('rbind', lapply(samp, Full.Neigh.Fun))
+
+nci <- do.call('rbind', lapply(samp, Full.Neigh.Fun))
+tdata <- cbind(tdata, nci)
+
+save(tdata, file="panama_NCI_Traits_11.13.15.RDA")
+
+
 ###############################
 ### CURRENT CONSIDERATIONS: ###
 ###############################
+load("panama_NCI_Traits_tNCI_uNCI_11.13.15.RDA")
+
 ### Remove LFDP data... (for now)
 tdata <- tdata[tdata$plot != 'lfdp',]
 
