@@ -195,7 +195,10 @@ load('panama_preNCI_10.23.15.RDA')
 Neigh.Fun <- function(i){ # a function to calculate trait NCI for the stem in row i
   if(tdata$Not.Edge[i] == 1){ #if stem is not on the edge
     foc.tree <- tdata[i,] #focal stem in row i
-    neighz <- tdata[(1:nrow(tdata))!=i & sqrt((tdata$x - foc.tree$x)^2 + (tdata$y - foc.tree$y)^2) <= 20 & tdata$census == foc.tree$census & tdata$plot == foc.tree$plot,] #gets neighboring stems within 20 meters and from the same census year
+    neighz <- tdata[(1:nrow(tdata))!=i 
+                    & sqrt((tdata$x - foc.tree$x)^2 + (tdata$y - foc.tree$y)^2) <= 20 
+                    & tdata$census == foc.tree$census 
+                    & tdata$plot == foc.tree$plot,] #gets neighboring stems within 20 meters and from the same census year
     if(sum(((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2) > 0){ #if some of the neighboring stems have the same coordinates as focal tree, add a slight offset
       neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] <- neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.25, 0.25) #changes stems with same coordinates
     }
@@ -609,20 +612,24 @@ stopCluster(cl)
 
 tdata <- cbind(tdata, nci)
 
-save(tdata, file="panama_NCI_Traits_11.13.15.RDA")
+# save(tdata, file="panama_NCI_Traits_11.14.15.RDA")
 
 
-## MACHINE 1
+names(tdata)
 
+cor(log(tdata$All.NCI+1), log(tdata$Big.NCI+1), use='p')
+plot(log(tdata$All.NCI+1), log(tdata$Big.NCI+1))
 
-
+tmp <- tdata[log(tdata$All.NCI+1) > 18,] 
+dim(tmp)
+table(tmp$plot)
 
 
 
 ###############################
 ### CURRENT CONSIDERATIONS: ###
 ###############################
-load("panama_NCI_Traits_tNCI_uNCI_11.13.15.RDA")
+load("panama_NCI_Traits_11.14.15.RDA")
 
 ### Remove LFDP data... (for now)
 tdata <- tdata[tdata$plot != 'lfdp',]
