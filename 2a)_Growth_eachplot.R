@@ -17,12 +17,12 @@ pc <- FALSE
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
 if(pc==T){ 
-  setwd("K:/Bob/Panama/DATA") 
+  setwd("K:/Bob/Panama/GIT/Panama_analysis/DATA") 
 } else {
-  setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+  setwd("/Users/Bob/Projects/Postdoc/Panama/GIT/Panama_analysis/DATA")
 }
 
-load("Panama_AnalysisData_10.30.15.RDA")
+load("Panama_AnalysisData_12.9.15.RDA")
 
 ###########################
 #### Prepare data for input  ####

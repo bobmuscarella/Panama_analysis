@@ -423,11 +423,9 @@ table(tmp$plot)
 ###############################
 ### CURRENT CONSIDERATIONS: ###
 ###############################
-load("panama_NCI_Traits_11.14.15.RDA")
+load("panama_NCI_Traits_12.9.15.RDA")
 
 head(tdata)
-
-head(x)
 
 ### Remove LFDP data... (for now)
 tdata <- tdata[tdata$plot != 'lfdp',]
@@ -447,8 +445,16 @@ tdata$Growth.Include <- growth.include
 tdata$Growth.Include.2 <- ((tdata$growth > 4 * (-(0.0062 * tdata$dbh + 0.904))) & (tdata$growth < 75))
 tdata$Growth.Include.2 <- ifelse(is.na(tdata$Growth.Include.2), FALSE, tdata$Growth.Include.2)
 
-# sum(!tdata$Growth.Include, na.rm=T)
-# sum(!tdata$Growth.Include.2, na.rm=T)
+### Another CONDIT METHOD TO EXCLUDE OUTLIERS
+# 1. Negative growth must be smaller than 25% DBH AND
+# 2. Postive growth must be less than 75 mm / yr
+tdata$Growth.Include.3 <- (!is.na(tdata$growth) & (tdata$growth) < 75 & tdata$growth > (tdata$dbh * -0.25))
+
+
+# sum(tdata$Growth.Include, na.rm=T)
+# sum(tdata$Growth.Include.2, na.rm=T)
+# sum(tdata$Growth.Include.3, na.rm=T)
+
 # hist(tdata$growth[tdata$Growth.Include==T & tdata$Growth.Include.2==F], breaks=100)
 # hist(tdata$growth[tdata$Growth.Include==F & tdata$Growth.Include.2==T], breaks=100)
 
@@ -520,7 +526,7 @@ tdata$log.unci.hmax.z <- unlist(tapply(tdata$log.unci.hmax, tdata$plot, z.score)
 # tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
 # tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
 
-save(tdata, file='Panama_AnalysisData_10.30.15.RDA')
+save(tdata, file='Panama_AnalysisData_12.9.15.RDA')
 
 
 
