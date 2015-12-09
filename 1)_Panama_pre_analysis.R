@@ -196,13 +196,13 @@ tdata <- tdata[tdata$dbh != 0 , ]
 # save(tdata, file='panama_preNCI.RDA')
 # save(tdata, file='panama_preNCI_10.23.15.RDA')
 # save(tdata, file='panama_preNCI_12.9.15.RDA')
-load('panama_preNCI_12.9.15.RDA')
 
 
 ##################################
 ### CHUNK 2 : ATTACH LFDP DATA ####
 ##################################
-# load('panama_NCI_10.26.15.RDA')
+load('panama_preNCI_12.9.15.RDA')
+
 
 luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
 load("lfdp/lfdp.RDA")
@@ -270,11 +270,15 @@ tdata <- cbind(tdata, traits[,-1])
 
 sum(!is.na(tdata$WSG))/nrow(tdata) # WD data for ~95% of observations here...
 
+
+save(tdata, file='panama_traits_preNCI_12.9.15.RDA')
+
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
 # load("alldata_NCI.RDA")
-#load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
+# load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
+load("panama_traits_preNCI_12.9.15.RDA")
 head(tdata)
 
 
