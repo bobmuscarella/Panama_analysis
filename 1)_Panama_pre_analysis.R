@@ -78,8 +78,8 @@ bci$spcode <- spcodes$spcode[match(bci$Latin, paste(spcodes$Genus, spcodes$Speci
 
 bci <- droplevels(bci)
 
-bci <- bci[,c('Tag','Latin','spcode','PX','PY','Not.edge','plot', 'census', 'dbhStart', 'growth','survival','days')]
-names(bci) <- c('tag','latin','spcode','x','y','Not.Edge','plot','census','dbh','growth','survival','days')
+bci <- bci[,c('Tag','Latin','spcode','PX','PY','Not.edge','plot', 'census', 'dbhStart', 'growth','log.growth','survival','days')]
+names(bci) <- c('tag','latin','spcode','x','y','Not.Edge','plot','census','dbh','growth','log.growth','survival','days')
 bci$id <- rownames(bci)
 
 bci <- bci[!is.na(bci$survival),]
@@ -170,12 +170,12 @@ head(tmp)
 
 # Clean up
 tmp <- tmp[,c("tag","spcode","x","y",'dbh1','dbh2',"Not.Edge","plot",
-						"grow12","grow23","survive12","survive23","int12","int23")]
+						"grow12","grow23","log.grow12","log.grow23","survive12","survive23","int12","int23")]
 
-tmp2 <- reshape(tmp, varying=c(list(5:6), list(9:10), list(11:12), list(13:14)), direction='long')
+tmp2 <- reshape(tmp, varying=c(list(5:6), list(9:10), list(11:12), list(13:14), list(15:16)), direction='long')
 tmp2 <- tmp2[order(tmp2$tag),]
-names(tmp2)[7:11] <- c('census','dbh','growth','survival','days')
-tmp2 <- tmp2[,c(1:12)]
+names(tmp2)[7:12] <- c('census','dbh','growth','log.growth','survival','days')
+tmp2 <- tmp2[,c(1:13)]
 tmp2$tag <- NULL
 
 rownames(tmp2) <- NULL
@@ -187,7 +187,7 @@ tdata <- tdata[ ! is.na(tdata$dbh),]
 tdata$latin[tdata$plot=='cocoli'] <- paste(cocsp$genus, cocsp$species)[match(tdata$spcode, cocsp$spcode)][tdata$plot=='cocoli']
 tdata$latin[tdata$plot=='sherman'] <- paste(shesp$genus, shesp$species)[match(tdata$spcode, shesp$spcode)][tdata$plot=='sherman']
 
-tdata <- tdata[,c("latin","spcode","x","y","Not.Edge","plot","census","dbh","growth","survival","days","id","nci")]
+tdata <- tdata[,c("latin","spcode","x","y","Not.Edge","plot","census","dbh","growth","log.growth","survival","days","id","nci")]
 
 tdata <- rbind(tdata, bci)
 
@@ -197,19 +197,17 @@ tdata <- tdata[tdata$dbh != 0 , ]
 # save(tdata, file='panama_preNCI_10.23.15.RDA')
 # save(tdata, file='panama_preNCI_12.9.15.RDA')
 
-
 ##################################
 ### CHUNK 2 : ATTACH LFDP DATA ####
 ##################################
 load('panama_preNCI_12.9.15.RDA')
 
-
-luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
-load("lfdp/lfdp.RDA")
-luq$latin <- luqsp$latin[match(luq$SPECIES, luqsp$spcode)]
-luq <- as.data.frame(cbind(luq$latin, luq[,!colnames(luq) %in% 'latin']))
-names(luq) <- names(tdata)
-tdata <- rbind(tdata, luq)
+# luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
+# load("lfdp/lfdp.RDA")
+# luq$latin <- luqsp$latin[match(luq$SPECIES, luqsp$spcode)]
+# luq <- as.data.frame(cbind(luq$latin, luq[,!colnames(luq) %in% 'latin']))
+# names(luq) <- names(tdata)
+# tdata <- rbind(tdata, luq)
 
 ##################################
 ### CHUNK 2b : IDENTIFY PALMS ####
@@ -219,15 +217,16 @@ cocsp <- read.table("cocoli/cocolisp.txt", header=T)
 shesp <- read.table("sherman/shermansp.txt", header=T)
 bcisp <- bcisp[,c('spcode','Genus','SpeciesName','Family')]
 names(bcisp) <- names(cocsp)
-luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
-luqsp <- luqsp[,c('spcode','genus','species','family')]
+# luqsp <- read.csv("lfdp/LFDP_spcodes.csv", row.names=1)
+# luqsp <- luqsp[,c('spcode','genus','species','family')]
 
 bcisp$plot <- 'bci'
 cocsp$plot <- 'cocoli'
 shesp$plot <- 'sherman'
-luqsp$plot <- 'lfdp'
+# luqsp$plot <- 'lfdp'
 
-spcodes <- rbind(bcisp, cocsp, shesp, luqsp)
+# spcodes <- rbind(bcisp, cocsp, shesp, luqsp)
+spcodes <- rbind(bcisp, cocsp, shesp)
 spcodes$spcodeplot <- paste(spcodes$spcode, spcodes$plot)
 spcodeplot <- paste(tdata$spcode, tdata$plot)
 
@@ -270,6 +269,16 @@ tdata <- cbind(tdata, traits[,-1])
 
 sum(!is.na(tdata$WSG))/nrow(tdata) # WD data for ~95% of observations here...
 
+### Log transform skewed traits *before* calculating tNCI...
+logtraits <- c('SEED_DRY','LEAFAREA_AVI','LEAFTHCK_AVI',
+               'LMALEAF_AVI','LDMC_AVI','AVG_LAMTUF','RGR_10',
+               'RGR_50','RGR_100','MORT_10','MORT_100')
+
+for(i in 1:length(logtraits)) {
+  newname <- paste('log', logtraits[i], sep='.')
+  tdata[,newname] <- log(tdata[,logtraits[i]])
+}
+
 
 save(tdata, file='panama_traits_preNCI_12.9.15.RDA')
 
@@ -280,7 +289,6 @@ save(tdata, file='panama_traits_preNCI_12.9.15.RDA')
 # load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
 load("panama_traits_preNCI_12.9.15.RDA")
 head(tdata)
-
 
 Full.Neigh.Fun <- function(i, tdata){   
   # If stem is not on the edge
@@ -389,7 +397,6 @@ return(
 # samp <- sample(which(tdata$Not.Edge==T), 5)
 # tmp <- do.call('rbind', lapply(samp, Full.Neigh.Fun))
 
-
 library(parallel)
 library(snow)
 
@@ -398,11 +405,9 @@ nci <- parLapply(cl, 1:nrow(tdata), Full.Neigh.Fun, tdata)
 nci <- do.call('rbind', nci)
 stopCluster(cl)
 
-
 tdata <- cbind(tdata, nci)
 
-# save(tdata, file="panama_NCI_Traits_11.14.15.RDA")
-
+# save(tdata, file="panama_NCI_Traits_12.9.15.RDA")
 
 names(tdata)
 
@@ -419,6 +424,10 @@ table(tmp$plot)
 ### CURRENT CONSIDERATIONS: ###
 ###############################
 load("panama_NCI_Traits_11.14.15.RDA")
+
+head(tdata)
+
+head(x)
 
 ### Remove LFDP data... (for now)
 tdata <- tdata[tdata$plot != 'lfdp',]
