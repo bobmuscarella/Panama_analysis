@@ -11,18 +11,19 @@ z.score <- function (data) {
 }
 
 ### Running on PC???
-pc <- FALSE
+pc <- T
 
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
 if(pc==T){ 
-  setwd("K:/Bob/Panama/DATA") 
+  setwd("K:/Bob/Panama/GIT/Panama_analysis/DATA") 
 } else {
-  setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+  setwd("/Users/Bob/Projects/Postdoc/Panama/GIT/Panama_analysis/DATA")
 }
 
-load("Panama_AnalysisData_10.30.15.RDA")
+load("Panama_AnalysisData_12.9.15.RDA")
+
 d <- tdata
 
 
@@ -33,7 +34,7 @@ rownames(d) <- NULL
 
 ### Remove growth NA
 d <- d[!is.na(d$growth),]
-d <- d[d$Growth.Include.2 == TRUE,]
+d <- d[d$Growth.Include.3 == TRUE,]
 
 
 ### REMOVE SO MANY ZERO GROWTHS
@@ -123,6 +124,7 @@ cat(" model {
     for( i in 1:ntree ) {
     
     growth[i] ~ dnorm(mu[i], tau[1])
+#    mu[i] <- (z[i])
     mu[i] <- exp(z[i])
     
     z[i] <- beta.1[species[i]]
@@ -153,28 +155,22 @@ cat(" model {
     indiv.effect[i.a] ~ dnorm(0, tau[13])
     }
     
-    beta.t[1] ~ dnorm(0, 1E-4)
-    beta.t[2] ~ dnorm(0, 1E-4)
-    beta.t[3] ~ dnorm(0, 1E-4)
-    
-    mu.beta[1] ~ dnorm(0, 1E-4)
-    mu.beta[2] ~ dnorm(0, 1E-4)
-    mu.beta[3] ~ dnorm(0, 1E-4)
-    mu.beta[4] ~ dnorm(0, 1E-4)
-    
-    for ( t in 1:13 ) {
-    tau[t] ~ dgamma(1E-3, 1E-3)
+    for( b in 1:3 ) {
+    beta.t[b] ~ dnorm(0, 1E-4)
     }
-    
+
+    for( m in 1:4 ) {
+    mu.beta[m] ~ dnorm(0, 1E-4)
+    }
+
+    for ( t in 1:13 ) {
+    tau[t] ~ dgamma(1E3, 1E3)
+    }
     
     sigma <- 1 / sqrt(tau)
     }
     ", fill=TRUE)
 sink()
-
-
-
-
 
 
 
@@ -222,31 +218,17 @@ cat(" model {
     indiv.effect[i.a] ~ dnorm(0, tau[14])
     }
     
-    beta.t[1] ~ dnorm(0, 1E-4)
-    beta.t[2] ~ dnorm(0, 1E-4)
-    beta.t[3] ~ dnorm(0, 1E-4)
-    beta.t[4] ~ dnorm(0, 1E-4)
-    beta.t[5] ~ dnorm(0, 1E-4)
-    beta.t[6] ~ dnorm(0, 1E-4)
-    
+    for( b in 1:6 ) {
+    beta.t[b] ~ dnorm(0, 1E-4)
+    }
+
     mu.beta[1] ~ dnorm(0, 1E-4)
     mu.beta[2] ~ dnorm(0, 1E-4)
     
-    tau[1] ~ dgamma(1E-3, 1E-3)
-    tau[2] ~ dgamma(1E-3, 1E-3)
-    tau[3] ~ dgamma(1E-3, 1E-3)
-    tau[4] ~ dgamma(1E-3, 1E-3)
-    tau[5] ~ dgamma(1E-3, 1E-3)
-    tau[6] ~ dgamma(1E-3, 1E-3)
-    tau[7] ~ dgamma(1E-3, 1E-3)
-    tau[8] ~ dgamma(1E-3, 1E-3)
-    tau[9] ~ dgamma(1E-3, 1E-3)
-    tau[10] ~ dgamma(1E-3, 1E-3)
-    tau[11] ~ dgamma(1E-3, 1E-3)
-    tau[12] ~ dgamma(1E-3, 1E-3)
-    tau[13] ~ dgamma(1E-3, 1E-3)
-    tau[14] ~ dgamma(1E-3, 1E-3)
-    
+    for( t in 1:14 ) {
+    tau[t] ~ dgamma(1E3, 1E3)
+    }
+
     sigma <- 1 / sqrt(tau)
     }
     ", fill=TRUE)
@@ -266,29 +248,30 @@ if(pc==T){
 # Set initial
 inits <- function (){
   list(
-    beta.t = rnorm(4),
-    mu.beta = rnorm(3),
-    tau = rgamma(10, 1E3, 1E3))
+    beta.t = rnorm(3),
+    mu.beta = rnorm(4),
+    tau = rgamma(13, 1E3, 1E3))
 }
 
 # Set monitors
 params <- c(paste('beta.t',1:4,sep='.'),"beta.t","mu.beta", "sigma")
 
 # Run model
-file <- paste(trait, 'RDA', sep='.')
+file <- paste('allplots', trait, 'RDA', sep='.')
 print(paste('Started', file, 'at', Sys.time()))
 
-adapt <- 100
-iter <- 1000
-burnin <- 500
-thin <- 2
+adapt <- 1000
+iter <- 5000
+burnin <- 2500
+thin <- 5
+nchains <- 4
 
 mod <- jagsUI::jags(data, inits, params,
                     "growth_3level_NCI_NCIXDBH.bug", 
-                    n.chains=3, n.adapt=adapt, n.iter=iter, 
+                    n.chains=nchains, n.adapt=adapt, n.iter=iter, 
                     n.burnin=burnin, n.thin=thin, parallel=T)
 
-print(paste('Started', file, 'at', Sys.time()))
+print(paste('Finished', file, 'at', Sys.time()))
 
 mod
 
@@ -296,6 +279,27 @@ mod
 paste("Start at:", Sys.time())
 mod <- update(mod, n.iter=5000)
 paste("Finish at:", Sys.time())
+
+
+dev <- length(unlist(mod$q50))
+nvar <- length(unlist(mod$q2.5)[-dev])
+labs <- names(unlist(mod$q50))[-dev]
+pch <- ifelse(unlist(mod$overlap0)==T, 1, 16)
+plot(unlist(mod$q50)[-dev], pch=pch, 
+     ylim=c(-3,3), axes=F, xlab='', 
+     ylab='effect size')
+axis(2)
+axis(1, seq(1,nvar,1), labels=labs, las=2)
+segments(seq(1,nvar,1), 
+         unlist(mod$q2.5)[-dev], 
+         seq(1,nvar,1), 
+         unlist(mod$q97.5)[-dev])
+abline(h=0, lty=2)
+
+
+
+
+
 
 
 
@@ -317,15 +321,6 @@ points(seq(1.2,12.2,1),unlist(shermod$q50)[-13], pch=21, bg=3)
 segments(1:12, unlist(bcimod$q2.5)[-13], 1:12, unlist(bcimod$q97.5)[-13], col=1)
 segments(seq(1.1,12.1,1), unlist(cocmod$q2.5)[-13], seq(1.1,12.1,1), unlist(cocmod$q97.5)[-13], col=2)
 segments(seq(1.2,12.2,1), unlist(shermod$q2.5)[-13], seq(1.2,12.2,1), unlist(shermod$q97.5)[-13], col=3)
-abline(h=0, lty=2)
-
-
-labs <- names(unlist(fullmod$q50))[-21]
-pch <- ifelse(unlist(fullmod$overlap0)==T, 1, 16)
-plot(unlist(fullmod$q50)[-21], pch=pch, ylim=c(-3,3), axes=F, xlab='', ylab='effect size')
-axis(2)
-axis(1, seq(1,20,1), labels=labs, las=2)
-segments(seq(1,20,1), unlist(fullmod$q2.5)[-21], seq(1,20,1), unlist(fullmod$q97.5)[-21])
 abline(h=0, lty=2)
 
 
