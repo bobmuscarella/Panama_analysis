@@ -24,6 +24,7 @@ if(pc==T){
 
 load("Panama_AnalysisData_12.9.15.RDA")
 
+
 ###########################
 #### Prepare data for input  ####
 ###########################
@@ -33,6 +34,34 @@ rownames(tdata) <- NULL
 tdata <- tdata[!is.na(tdata$growth),]
 tdata <- tdata[tdata$Growth.Include.2 == TRUE,]
 
+
+
+################################################################
+####    Standardize and Center coefficients within plots    ####
+################################################################
+tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
+
+tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, center=F))
+
+tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, z.score))
+
+tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, z.score))
+
+tdata$log.tnci.wsg.z <- unlist(tapply(tdata$log.tnci.wsg, tdata$plot, z.score))
+tdata$log.unci.wsg.z <- unlist(tapply(tdata$log.unci.wsg, tdata$plot, z.score))
+tdata$log.tnci.log.ldmc.z <- unlist(tapply(tdata$log.tnci.log.ldmc, tdata$plot, z.score))
+tdata$log.unci.log.ldmc.z <- unlist(tapply(tdata$log.unci.log.ldmc, tdata$plot, z.score))
+tdata$log.tnci.log.lma.z <- unlist(tapply(tdata$log.tnci.log.lma, tdata$plot, z.score))
+tdata$log.unci.log.lma.z <- unlist(tapply(tdata$log.unci.log.lma, tdata$plot, z.score))
+tdata$log.tnci.log.seed.z <- unlist(tapply(tdata$log.tnci.log.seed, tdata$plot, z.score))
+tdata$log.unci.log.seed.z <- unlist(tapply(tdata$log.unci.log.seed, tdata$plot, z.score))
+tdata$log.tnci.hmax.z <- unlist(tapply(tdata$log.tnci.hmax, tdata$plot, z.score))
+tdata$log.unci.hmax.z <- unlist(tapply(tdata$log.unci.hmax, tdata$plot, z.score))
+
+
+#################################
+####    PREP Continues...    ####
+#################################
 # Change names for ease
 names(tdata)[names(tdata)=='WSG'] <- 'wsg'
 names(tdata)[names(tdata)=='log.LDMC_AVI'] <- 'log.ldmc'
