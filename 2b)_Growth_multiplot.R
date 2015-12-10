@@ -27,6 +27,7 @@ load("Panama_AnalysisData_12.9.15.RDA")
 d <- tdata
 
 
+
 #################################
 #### Prepare data for input  ####
 #################################
@@ -34,18 +35,53 @@ rownames(d) <- NULL
 
 ### Remove growth NA
 d <- d[!is.na(d$growth),]
-d <- d[d$Growth.Include.3 == TRUE,]
-
+d <- d[d$Growth.Include.2 == TRUE,]
 
 ### REMOVE SO MANY ZERO GROWTHS
 # d <- d[d$growth != 0,]
 
 ### SAMPLE THE BCI DATA FOR SPEED
 # bci <- d[d$plot %in% 'bci',]
-# bci <- bci[sample(1:nrow(bci), 8000),]
+# bci <- bci[sample(1:nrow(bci), 5000),]
 # d <- d[!d$plot %in% 'bci',]
 # d <- rbind(bci, d)
 # table(d$plot)
+
+
+
+################################################################
+####    Standardize and Center coefficients within plots    ####
+################################################################
+tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
+
+tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, center=F))
+
+tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, z.score))
+
+tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, z.score))
+
+tdata$log.tnci.wsg.z <- unlist(tapply(tdata$log.tnci.wsg, tdata$plot, z.score))
+tdata$log.unci.wsg.z <- unlist(tapply(tdata$log.unci.wsg, tdata$plot, z.score))
+tdata$log.tnci.log.ldmc.z <- unlist(tapply(tdata$log.tnci.log.ldmc, tdata$plot, z.score))
+tdata$log.unci.log.ldmc.z <- unlist(tapply(tdata$log.unci.log.ldmc, tdata$plot, z.score))
+tdata$log.tnci.log.lma.z <- unlist(tapply(tdata$log.tnci.log.lma, tdata$plot, z.score))
+tdata$log.unci.log.lma.z <- unlist(tapply(tdata$log.unci.log.lma, tdata$plot, z.score))
+tdata$log.tnci.log.seed.z <- unlist(tapply(tdata$log.tnci.log.seed, tdata$plot, z.score))
+tdata$log.unci.log.seed.z <- unlist(tapply(tdata$log.unci.log.seed, tdata$plot, z.score))
+tdata$log.tnci.hmax.z <- unlist(tapply(tdata$log.tnci.hmax, tdata$plot, z.score))
+tdata$log.unci.hmax.z <- unlist(tapply(tdata$log.unci.hmax, tdata$plot, z.score))
+
+
+
+################################################################
+####    Standardize and Center coefficients within plots    ####
+################################################################
+
+
+
+
+
+
 
 
 ### Change names for ease
@@ -63,7 +99,6 @@ d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z',
           paste('log.tnci', traits, 'z', sep='.'), 
           paste('log.unci', traits, 'z', sep='.'))]
 
-
 #	for (i in 1:length(traits)) {
 i=1
 
@@ -73,7 +108,7 @@ trait <- traits[i]
 d <- d[!is.na (d[,trait]),]
 
 # SAMPLE DATA FOR EXPLORATORY...
-# d <- d[sample(1:nrow(d), 5000),]
+# d <- d[sample(1:nrow(d), 10000),]
 # d <- droplevels(d)
 # rownames(d) <- NULL
 
@@ -100,8 +135,8 @@ data = list (
   nspecies = length(levels(d$speciesxplot)),
   growth = as.numeric(d$growth.z),
   nci = as.numeric(d[,'log.nci.z']),
-  #  tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
-  #  unci = as.numeric(d[,paste('log.unci.', trait, '.z', sep='')]),
+  tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
+  unci = as.numeric(d[,paste('log.unci.', trait, '.z', sep='')]),
   dbh = as.numeric(d$log.dbh.z),
   trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
   indiv = d$indiv,

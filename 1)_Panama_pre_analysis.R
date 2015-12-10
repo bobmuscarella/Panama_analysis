@@ -23,8 +23,8 @@ bci4 <- bci4[bci4$Stem == "main",]
 bci5 <- bci5[bci5$Stem == "main",]
 
 # subset to alive stems in C4 with DBH measured and alive or dead stems in C5
-bci4 <- bci4[ ! bci4$Status %in% c('dead','missing'),]
-bci4 <- bci4[ ! is.na(bci4$DBH),]
+bci4 <- bci4[ bci4$Status %in% c('alive'),]
+#bci4 <- bci4[ ! is.na(bci4$DBH),]
 bci4 <- droplevels(bci4)
 bci5 <- bci5[ ! bci5$Status %in% c('missing'),]
 
@@ -450,7 +450,6 @@ tdata$Growth.Include.2 <- ifelse(is.na(tdata$Growth.Include.2), FALSE, tdata$Gro
 # 2. Postive growth must be less than 75 mm / yr
 tdata$Growth.Include.3 <- (!is.na(tdata$growth) & (tdata$growth) < 75 & tdata$growth > (tdata$dbh * -0.25))
 
-
 # sum(tdata$Growth.Include, na.rm=T)
 # sum(tdata$Growth.Include.2, na.rm=T)
 # sum(tdata$Growth.Include.3, na.rm=T)
@@ -468,53 +467,43 @@ tdata <- tdata[ ! tdata$survival %in% NA,]
 tdata <- droplevels(tdata)
 
 ### Z-TRANSFORM DATA
-z.score <- function (data) {
-	xm<- mean (data, na.rm=TRUE)
-	xsd<-sd(data, na.rm=TRUE)
-	xtrans<-(data-xm)/(2*xsd)	
+z.score <- function (data, scale=T, center=T) {
+	xm <- mean (data, na.rm=TRUE)
+	xsd <- sd(data, na.rm=TRUE)
+  if(center==T & scale==T){ xtrans <- (data - xm)/( 2 * xsd) }
+	if(center==F & scale==T){ xtrans <- (data)/( 2 * xsd) }
+	if(center==T & scale==F){ xtrans <- (data - xm) }
+	return(xtrans)
 }
 
 ### Log-transform coefficients
 # log the NCI metric
-tdata$log.nci <- log(tdata$nci + 1)
+tdata$log.nci <- log(tdata$nci)
 
 # log the dbh
 tdata$log.dbh <- log(tdata$dbh)
 
 # log the tNCI and uNCI metrics
-tdata$log.tnci.hmax <- log(tdata$tnci.hmax + 1)
+tdata$log.tnci.hmax <- log(tdata$tnci.hmax)
+tdata$log.tnci.log.ldmc <- log(tdata$tnci.log.ldmc)
+tdata$log.tnci.log.lma <- log(tdata$tnci.log.lma)
+tdata$log.tnci.log.seed <- log(tdata$tnci.log.seed)
+tdata$log.tnci.wsg <- log(tdata$tnci.wsg)
+
 tdata$log.unci.hmax <- log(tdata$unci.hmax + 1)
-tdata$log.tnci.log.ldmc <- log(tdata$tnci.log.ldmc + 1)
 tdata$log.unci.log.ldmc <- log(tdata$unci.log.ldmc + 1)
-tdata$log.tnci.log.lma <- log(tdata$tnci.log.lma + 1)
 tdata$log.unci.log.lma <- log(tdata$unci.log.lma + 1)
-tdata$log.tnci.log.seed <- log(tdata$tnci.log.seed + 1)
 tdata$log.unci.log.seed <- log(tdata$unci.log.seed + 1)
-tdata$log.tnci.wsg <- log(tdata$tnci.wsg + 1)
 tdata$log.unci.wsg <- log(tdata$unci.wsg + 1)
 
 
-#########################################
-####    Standardize coefficients within plots    ####
-#########################################
-tdata <- tdata[order(tdata$plot, tdata$spcode, tdata$id, tdata$census),]
+save(tdata, file='Panama_AnalysisData_12.9.15.RDA')
 
-tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, center=F))
 
-tdata$log.nci.z <- unlist(tapply(tdata$log.nci, tdata$plot, z.score))
 
-tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, z.score))
 
-tdata$log.tnci.wsg.z <- unlist(tapply(tdata$log.tnci.wsg, tdata$plot, z.score))
-tdata$log.unci.wsg.z <- unlist(tapply(tdata$log.unci.wsg, tdata$plot, z.score))
-tdata$log.tnci.log.ldmc.z <- unlist(tapply(tdata$log.tnci.log.ldmc, tdata$plot, z.score))
-tdata$log.unci.log.ldmc.z <- unlist(tapply(tdata$log.unci.log.ldmc, tdata$plot, z.score))
-tdata$log.tnci.log.lma.z <- unlist(tapply(tdata$log.tnci.log.lma, tdata$plot, z.score))
-tdata$log.unci.log.lma.z <- unlist(tapply(tdata$log.unci.log.lma, tdata$plot, z.score))
-tdata$log.tnci.log.seed.z <- unlist(tapply(tdata$log.tnci.log.seed, tdata$plot, z.score))
-tdata$log.unci.log.seed.z <- unlist(tapply(tdata$log.unci.log.seed, tdata$plot, z.score))
-tdata$log.tnci.hmax.z <- unlist(tapply(tdata$log.tnci.hmax, tdata$plot, z.score))
-tdata$log.unci.hmax.z <- unlist(tapply(tdata$log.unci.hmax, tdata$plot, z.score))
+
+
 
 
 ###############################################################
@@ -525,8 +514,6 @@ tdata$log.unci.hmax.z <- unlist(tapply(tdata$log.unci.hmax, tdata$plot, z.score)
 # tdata$log.tnci.z <- unlist(tapply(tdata$log.tnci, tdata$plot, scale, scale=F))
 # tdata$log.dbh.z <- unlist(tapply(tdata$log.dbh, tdata$plot, scale, scale=F))
 # tdata$growth.z <- unlist(tapply(tdata$growth, tdata$plot, scale, scale=F))
-
-save(tdata, file='Panama_AnalysisData_12.9.15.RDA')
 
 
 
