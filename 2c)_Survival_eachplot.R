@@ -1,13 +1,13 @@
-#######################################
-###  GROWTH ANALYSIS  -  SINGLE PLOT ###
-#######################################
+##########################################
+###  SURVIVAL ANALYSIS  -  SINGLE PLOT ###
+##########################################
 library(jagsUI)
 
 ### Z-TRANSFORM DATA
 z.score <- function (data) {
   xm<- mean (data, na.rm=TRUE)
   xsd<-sd(data, na.rm=TRUE)
-  xtrans<-(data-xm)/(2*xsd)	
+  xtrans<-(data-xm)/(2*xsd)  
 }
 
 ### Running on PC???
@@ -21,15 +21,13 @@ if(pc==T){
 } else {
   setwd("/Users/Bob/Projects/Postdoc/Panama/GIT/Panama_analysis/DATA")
 }
-load("Panama_AnalysisData_12.9.15.RDA")
 
-###########################
+load("Panama_AnalysisData_12.9.15.RDA")
+d <- tdata
+
+#################################
 #### Prepare data for input  ####
-###########################
-### REMOVE GROWTH OUTLIERS
-# tdata <- tdata[tdata$Growth.Include == TRUE,]
-# tdata <- tdata[tdata$Growth.Include.2 == TRUE,]
-d <- tdata[tdata$Growth.Include.3 == TRUE,]
+#################################
 
 ### Change names for ease
 names(d)[names(d)=='WSG'] <- 'wsg'
@@ -69,11 +67,6 @@ d$log.unci.log.lma.z <- unlist(tapply(d$log.unci.log.lma, d$plot, z.score))
 d$log.unci.log.seed.z <- unlist(tapply(d$log.unci.log.seed, d$plot, z.score))
 d$log.unci.hmax.z <- unlist(tapply(d$log.unci.hmax, d$plot, z.score))
 
-
-#################################
-####    PREP Continues...    ####
-#################################
-
 d$plot <- substring(d$plot, 1, 3)
 
 # CHOOSE A PLOT TO WORK WITH ONE PLOT AT A TIME...
@@ -82,7 +75,7 @@ plots <- c('bci','coc','she')
 p <- 2
 # for(p in 1:3) {
 
-d <- d[,c('spcode','plot','census','growth.z','log.dbh.z','id','log.nci.z', 
+d <- d[,c('spcode','plot','census','survival','log.dbh.z','id','log.nci.z','days',
           trait, 
           paste('log.tnci', trait, 'z', sep='.'), 
           paste('log.unci', trait, 'z', sep='.'))]
@@ -115,9 +108,10 @@ data = list (
   ntree = nrow(d),
   nindiv = length(unique(d$id)),
   nspecies = length(levels(d$speciesxplot)),
-  growth = as.numeric(d$growth.z),
+  alive = d$survival,
   nci = as.numeric(d[,'log.nci.z']),
   tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
+  days = as.numeric(d$days),
   dbh = as.numeric(d$log.dbh.z),
   trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
   indiv = d$indiv,
@@ -134,42 +128,46 @@ if(pc==T){
   setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 }
 
-sink("growth_2level_NCI_NCIXDBH.bug")
+sink("survive_2level_NCI_NCIXDBH.bug")
 
 cat(" model {
     
     for( i in 1:ntree ) {
     
-    growth[i] ~ dnorm(mu[i], tau[1])
-    
-    mu[i] <- beta.1[species[i]]
-             + beta.2[species[i]] * nci[i]
-             + beta.3[species[i]] * (dbh[i]
-             + beta.4[species[i]] * nci[i] * dbh[i]
-             + indiv.effect[indiv[i]]
+    alive[i] ~ dinterval(t[i], days[i])
+
+    t[i] ~ dweib(r, mu[i])
+
+    mu[i] <- exp(z[i])
+
+    z[i] <- beta.1[species[i]]
+    + beta.2[species[i]] * nci[i]
+    + beta.3[species[i]] * (dbh[i]
+    + beta.4[species[i]] * nci[i] * dbh[i]
+    + indiv.effect[indiv[i]]
     }
     
     for( j in 1:nspecies ) {
-      beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[2])
-      beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[3])
-      beta.3[j] ~ dnorm(mu.beta[3], tau[4])
-      beta.4[j] ~ dnorm(mu.beta[4] + beta.t[3] * trait[j], tau[5])
+    beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[1])
+    beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[2])
+    beta.3[j] ~ dnorm(mu.beta[3], tau[3])
+    beta.4[j] ~ dnorm(mu.beta[4] + beta.t[3] * trait[j], tau[4])
     }
     
     for( i.a in 1:nindiv ) {
-      indiv.effect[i.a] ~ dnorm(0, tau[6])
+    indiv.effect[i.a] ~ dnorm(0, tau[5])
     }
     
     for( b in 1:3 ) {
-      beta.t[b] ~ dnorm(0, 1E-4)
+    beta.t[b] ~ dnorm(0, 1E-4)
     }
     
     for( m in 1:4 ) {
-      mu.beta[m] ~ dnorm(0, 1E-4)
+    mu.beta[m] ~ dnorm(0, 1E-4)
     }
     
-    for( t in 1:6 ) {
-      tau[t] ~ dgamma(1E-3, 1E-3)
+    for( t in 1:5 ) {
+    tau[t] ~ dgamma(1E-3, 1E-3)
     }
     
     sigma <- 1 / sqrt(tau)
@@ -180,44 +178,48 @@ sink()
 
 
 
-sink("growth_2level_NCI_TNCI_NCIXDBH.bug")
+sink("survive_2level_NCI_TNCI_NCIXDBH.bug")
 
 cat(" model {
     
     for( i in 1:ntree ) {
     
-    growth[i] ~ dnorm(mu[i], tau[1])
+    alive[i] ~ dinterval(t[i], days[i])
 
-    mu[i] <- beta.1[species[i]]
-            + beta.2[species[i]] * nci[i]
-            + beta.3[species[i]] * tnci[i]
-            + beta.4[species[i]] * dbh[i]
-            + beta.5[species[i]] * nci[i] * dbh[i]
-            + indiv.effect[indiv[i]]
+    t[i] ~ dweib(r, mu[i])
+
+    mu[i] <- exp(z[i])
+
+    z[i] <- beta.1[species[i]]
+    + beta.2[species[i]] * nci[i]
+    + beta.3[species[i]] * tnci[i]
+    + beta.4[species[i]] * dbh[i]
+    + beta.5[species[i]] * nci[i] * dbh[i]
+    + indiv.effect[indiv[i]]
     }
     
     for( j in 1:nspecies ) {
-      beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[2])
-      beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[3])
-      beta.3[j] ~ dnorm(mu.beta[3], tau[4])
-      beta.4[j] ~ dnorm(mu.beta[4], tau[5])
-      beta.5[j] ~ dnorm(mu.beta[5], tau[6])
+    beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[1])
+    beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[2])
+    beta.3[j] ~ dnorm(mu.beta[3], tau[3])
+    beta.4[j] ~ dnorm(mu.beta[4], tau[4])
+    beta.5[j] ~ dnorm(mu.beta[5], tau[5])
     }
     
     for( i.a in 1:nindiv ) {
-      indiv.effect[i.a] ~ dnorm(0, tau[7])
+    indiv.effect[i.a] ~ dnorm(0, tau[6])
     }
     
     for(b in 1:2){
-      beta.t[b] ~ dnorm(0, 1E-4)
+    beta.t[b] ~ dnorm(0, 1E-4)
     }
     
     for(m in 1:5){
     mu.beta[m] ~ dnorm(0, 1E-4)
     }
-
-    for(t in 1:7){
-      tau[t] ~ dgamma(1E-3, 1E-3)
+    
+    for(t in 1:6){
+    tau[t] ~ dgamma(1E-3, 1E-3)
     }
     
     sigma <- 1 / sqrt(tau)
@@ -232,11 +234,12 @@ sink()
 ################################################
 
 # Set initial values
-inits <- function (){
+inits <- function (eps=0.1){
   list(
     beta.t = rnorm(2),
     mu.beta = rnorm(5),
-    tau = rgamma(7, 1E3, 1E3))
+    tau = rgamma(6, 1E3, 1E3),
+    t = with(d, days + ifelse(alive, eps, -eps)))
 }
 
 if(pc==T){ 
@@ -250,24 +253,23 @@ if(pc==T){
 params <- c("beta.t","mu.beta","sigma")
 
 # Run model
-adapt <- 1000
-iter <- 5000
-burn <- 2500
-thin <- 5
-chains <- 3
+adapt <- 100
+iter <- 100
+burn <- 50
+thin <- 1
+chains <- 2
 
 mod <- jagsUI::jags(data, inits, params, 
-                    "growth_2level_NCI_TNCI_NCIXDBH.bug", 
+                    "survive_2level_NCI_NCIXDBH.bug", 
                     n.chains=chains, n.adapt=adapt, n.iter=iter, 
                     n.burnin=burn, n.thin=thin, parallel=F)
-
 
 for(i in 1:3) {
   if(sum(unlist(mod$Rhat) > 1.1) > 0){
     mod <- update(mod, n.iter=1000)
   }
 }
-  
+
 if(pc==T){ 
   setwd("K:/Bob/Panama/RESULTS") 
 } else {
@@ -394,5 +396,6 @@ load('testmod.RDA')
 plotmod
 
 mod2 <- update(plotmod, n.iter=100)
+
 
 
