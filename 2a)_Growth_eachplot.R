@@ -49,26 +49,37 @@ d <- d[!is.na (d[,trait]),]
 d <- droplevels(d)
 
 ################################################################
-####    Standardize and Center coefficients within plots    ####
+####    Standardize and Center coefficients (within plots?)    ####
 ################################################################
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
 
 d$growth.z <- unlist(tapply(d$growth, d$plot, scale, center=F))
-d$log.nci.z <- unlist(tapply(d$log.nci, d$plot, z.score))
-d$log.dbh.z <- unlist(tapply(d$log.dbh, d$plot, z.score))
+d$log.nci.z <- z.score(d$log.nci)
+#d$log.nci.z <- unlist(tapply(d$log.nci, d$plot, z.score))
+d$log.dbh.z <- z.score(d$log.dbh)
+#d$log.dbh.z <- unlist(tapply(d$log.dbh, d$plot, z.score))
 
-d$log.tnci.wsg.z <- unlist(tapply(d$log.tnci.wsg, d$plot, z.score))
-d$log.tnci.log.ldmc.z <- unlist(tapply(d$log.tnci.log.ldmc, d$plot, z.score))
-d$log.tnci.log.lma.z <- unlist(tapply(d$log.tnci.log.lma, d$plot, z.score))
-d$log.tnci.log.seed.z <- unlist(tapply(d$log.tnci.log.seed, d$plot, z.score))
-d$log.tnci.hmax.z <- unlist(tapply(d$log.tnci.hmax, d$plot, z.score))
+d$log.tnci.wsg.z <- z.score(d$log.tnci.wsg)
+d$log.tnci.log.ldmc.z <- z.score(d$log.tnci.log.ldmc)
+d$log.tnci.log.lma.z <- z.score(d$log.tnci.log.lma)
+d$log.tnci.log.seed.z <- z.score(d$log.tnci.log.seed)
+d$log.tnci.hmax.z <- z.score(d$log.tnci.hmax)
+#d$log.tnci.wsg.z <- unlist(tapply(d$log.tnci.wsg, d$plot, z.score))
+#d$log.tnci.log.ldmc.z <- unlist(tapply(d$log.tnci.log.ldmc, d$plot, z.score))
+#d$log.tnci.log.lma.z <- unlist(tapply(d$log.tnci.log.lma, d$plot, z.score))
+#d$log.tnci.log.seed.z <- unlist(tapply(d$log.tnci.log.seed, d$plot, z.score))
+#d$log.tnci.hmax.z <- unlist(tapply(d$log.tnci.hmax, d$plot, z.score))
 
-d$log.unci.wsg.z <- unlist(tapply(d$log.unci.wsg, d$plot, z.score))
-d$log.unci.log.ldmc.z <- unlist(tapply(d$log.unci.log.ldmc, d$plot, z.score))
-d$log.unci.log.lma.z <- unlist(tapply(d$log.unci.log.lma, d$plot, z.score))
-d$log.unci.log.seed.z <- unlist(tapply(d$log.unci.log.seed, d$plot, z.score))
-d$log.unci.hmax.z <- unlist(tapply(d$log.unci.hmax, d$plot, z.score))
-
+d$log.unci.wsg.z <- z.score(d$log.unci.wsg)
+d$log.unci.log.ldmc.z <- z.score(d$log.unci.log.ldmc)
+d$log.unci.log.lma.z <- z.score(d$log.unci.log.lma)
+d$log.unci.log.seed.z <- z.score(d$log.unci.log.seed)
+d$log.unci.hmax.z <- z.score(d$log.unci.hmax)
+#d$log.unci.wsg.z <- unlist(tapply(d$log.unci.wsg, d$plot, z.score))
+#d$log.unci.log.ldmc.z <- unlist(tapply(d$log.unci.log.ldmc, d$plot, z.score))
+#d$log.unci.log.lma.z <- unlist(tapply(d$log.unci.log.lma, d$plot, z.score))
+#d$log.unci.log.seed.z <- unlist(tapply(d$log.unci.log.seed, d$plot, z.score))
+#d$log.unci.hmax.z <- unlist(tapply(d$log.unci.hmax, d$plot, z.score))
 
 #################################
 ####    PREP Continues...    ####
@@ -250,10 +261,10 @@ if(pc==T){
 params <- c("beta.t","mu.beta","sigma")
 
 # Run model
-adapt <- 1000
-iter <- 5000
-burn <- 2500
-thin <- 5
+adapt <- 500
+iter <- 2000
+burn <- 1000
+thin <- 3
 chains <- 3
 
 mod <- jagsUI::jags(data, inits, params, 
