@@ -142,7 +142,7 @@ cat(" model {
 
     z[i] <- beta.1[species[i]]
     + beta.2[species[i]] * nci[i]
-    + beta.3[species[i]] * (dbh[i]
+    + beta.3[species[i]] * dbh[i]
     + beta.4[species[i]] * nci[i] * dbh[i]
     + indiv.effect[indiv[i]]
     }
@@ -171,7 +171,8 @@ cat(" model {
     }
     
     sigma <- 1 / sqrt(tau)
-    
+    r ~ dgamma(1E-3, 1E-3)
+
     }"
 , fill=TRUE)
 sink()
@@ -222,6 +223,7 @@ cat(" model {
     tau[t] ~ dgamma(1E-3, 1E-3)
     }
     
+    r ~ dgamma(1E-3, 1E-3)
     sigma <- 1 / sqrt(tau)
     
     }"
@@ -236,10 +238,11 @@ sink()
 # Set initial values
 inits <- function (eps=0.1){
   list(
-    beta.t = rnorm(2),
-    mu.beta = rnorm(5),
-    tau = rgamma(6, 1E3, 1E3),
-    t = with(d, days + ifelse(alive, eps, -eps)))
+    beta.t = rnorm(3),
+    mu.beta = rnorm(4),
+    tau = rgamma(5, 1E3, 1E3),
+    r = 2,
+    t = with(data, days + ifelse(alive, eps, -eps)))
 }
 
 if(pc==T){ 
@@ -250,7 +253,7 @@ if(pc==T){
 
 # Set monitors
 # params <- c(paste("beta",1:4,sep='.'),"beta.t","mu.beta","sigma")
-params <- c("beta.t","mu.beta","sigma")
+params <- c("beta.t","mu.beta","sigma","r")
 
 # Run model
 adapt <- 100
