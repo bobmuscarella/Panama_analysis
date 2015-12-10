@@ -11,7 +11,7 @@ z.score <- function (data) {
 }
 
 ### Running on PC???
-pc <- FALSE
+pc <- T
 
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
@@ -24,6 +24,8 @@ if(pc==T){
 
 load("Panama_AnalysisData_12.9.15.RDA")
 d <- tdata
+
+d <- d[d$census==2,]
 
 #################################
 #### Prepare data for input  ####
@@ -256,16 +258,38 @@ if(pc==T){
 params <- c("beta.t","mu.beta","sigma","r")
 
 # Run model
-adapt <- 100
-iter <- 100
-burn <- 50
-thin <- 1
-chains <- 2
+adapt <- 2000
+iter <- 20000
+burn <- 15000
+thin <- 5
+chains <- 4
 
-mod <- jagsUI::jags(data, inits, params, 
+initsmod <- jagsUI::jags(data, inits, params, 
                     "survive_2level_NCI_NCIXDBH.bug", 
                     n.chains=chains, n.adapt=adapt, n.iter=iter, 
-                    n.burnin=burn, n.thin=thin, parallel=F)
+                    n.burnin=burn, n.thin=thin, parallel=T)
+
+start <- inits()
+start$beta.t <- initsmod$q50$beta.t
+start$mu.beta <- initsmod$q50$mu.beta
+start$r <- initsmod$q50$r
+start$tau <- 1/(initsmod$q50$sigma^2)
+
+
+adapt <- 500
+iter <- 5000
+burn <- 2500
+thin <- 5
+chains <- 4
+
+mod <- jagsUI::jags(data, list(start,start,start,start), params, 
+                    "survive_2level_NCI_NCIXDBH.bug", 
+                    n.chains=chains, n.adapt=adapt, n.iter=iter, 
+                    n.burnin=burn, n.thin=thin, parallel=T)
+
+
+
+
 
 for(i in 1:3) {
   if(sum(unlist(mod$Rhat) > 1.1) > 0){
