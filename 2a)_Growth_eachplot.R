@@ -55,6 +55,9 @@ d <- droplevels(d)
 d <- d[order(d$plot, d$spcode, d$id, d$census),]
 
 d$growth.z <- unlist(tapply(d$growth, d$plot, scale, center=F))
+d$log.growth.z <- log(d$growth + abs(min(d$growth, na.rm=T))) - log(abs(min(d$growth, na.rm=T)))
+d <- d[is.finite(d$log.growth.z),]
+
 d$log.nci.z <- z.score(d$log.nci)
 #d$log.nci.z <- unlist(tapply(d$log.nci, d$plot, z.score))
 d$log.dbh.z <- z.score(d$log.dbh)
@@ -86,6 +89,8 @@ d$log.unci.hmax.z <- z.score(d$log.unci.hmax)
 #### Standardize and Center coefficients (within plots, within size classes) ####
 #################################################################################
 d$growth.z <- unlist(tapply(d$growth, d$plot, scale, center=F))
+d$log.growth.z <- log(d$growth + abs(min(d$growth, na.rm=T))) - log(abs(min(d$growth, na.rm=T)))
+d <- d[is.finite(d$log.growth.z),]
 
 ### Center / scale DBH within species, within size class
 size.classes <- tapply(d$dbh, paste(d$spcode, d$plot), quantile, 0.5)
@@ -109,6 +114,9 @@ for (i in 1:2){
   d$log.tnci.log.seed.z[d$size.class %in% i] <- z.score(d$log.tnci.log.seed[d$size.class %in% i])
   d$log.tnci.hmax.z[d$size.class %in% i] <- z.score(d$log.tnci.hmax[d$size.class %in% i])
 }
+
+
+
 
 
 #################################
@@ -191,7 +199,7 @@ cat(" model {
     
     mu[i] <- beta.1[species[i]]
              + beta.2[species[i]] * nci[i]
-             + beta.3[species[i]] * (dbh[i]
+             + beta.3[species[i]] * dbh[i]
              + beta.4[species[i]] * nci[i] * dbh[i]
              + indiv.effect[indiv[i]]
     }
@@ -279,7 +287,7 @@ sink()
 # Set initial values
 inits <- function (){
   list(
-    beta.t = rnorm(2),
+    beta.t = rnorm(3),
     mu.beta = rnorm(4),
     tau = rgamma(6, 1E3, 1E3))
 }
@@ -295,14 +303,14 @@ if(pc==T){
 params <- c("beta.t","mu.beta","sigma")
 
 # Run model
-adapt <- 1000
-iter <- 5000
-burn <- 4000
+adapt <- 100
+iter <- 500
+burn <- 400
 thin <- 5
 chains <- 3
 
 mod <- jagsUI::jags(data, inits, params, 
-                    "growth_2level_NCI_TNCI.bug", 
+                    "growth_2level_NCI_NCIXDBH.bug", 
                     n.chains=chains, n.adapt=adapt, n.iter=iter, 
                     n.burnin=burn, n.thin=thin, parallel=F)
 

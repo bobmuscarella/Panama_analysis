@@ -62,7 +62,7 @@ d <- d[order(d$plot, d$spcode, d$sc, d$id, d$census),]
 ### Center / scale other variableswithin size class
 for (i in 1:2){
   d$log.dbh.z[d$sc %in% i] <- unlist(tapply(d$log.dbh[d$sc %in% i], d$plot[d$sc %in% i], z.score))
-  d$log.nci.z[d$sc %in% i] <- unlist(tapply(d$log.nci[d$sc %in% i], d$plot[d$sc %in% i], z.score))
+  d$log.nci.z[d$sc %in% i] <- unlist(tapply(log(d$nci)[d$sc %in% i], d$plot[d$sc %in% i], z.score))
   d$log.tnci.wsg.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.wsg[d$sc %in% i], d$plot[d$sc %in% i], z.score))
   d$log.tnci.log.ldmc.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.log.ldmc[d$sc %in% i], d$plot[d$sc %in% i], z.score))
   d$log.tnci.log.lma.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.log.lma[d$sc %in% i], d$plot[d$sc %in% i], z.score))

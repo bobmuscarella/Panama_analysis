@@ -306,7 +306,7 @@ Full.Neigh.Fun <- function(i, tdata){
     # If some of the neighboring stems have the same coordinates as focal tree, add a slight offset
     # Changes stems with same coordinates
     if(sum(((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2) > 0){
-      neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] <- neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.01, 0.01)
+      neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] <- neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.25, 0.25)
     }
     
     # Calculate NCI using DBH^2 and dist^-2
@@ -394,8 +394,12 @@ return(
 }
 
 # TEST THE FUNCTION
-# samp <- sample(which(tdata$Not.Edge==T), 5)
-# tmp <- do.call('rbind', lapply(samp, Full.Neigh.Fun))
+# samp <- sample(which(tdata$Not.Edge==T), 100)
+# tmp <- do.call('rbind', lapply(samp, Full.Neigh.Fun, tdata))
+
+
+do.call('rbind', lapply(samp[7], Full.Neigh.Fun, tdata))$All.NCI
+unlist(lapply(samp[7], Neigh.Fun))
 
 library(parallel)
 library(snow)
