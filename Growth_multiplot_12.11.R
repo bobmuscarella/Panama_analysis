@@ -1,13 +1,13 @@
 #######################################
-###  GROWTH ANALYSIS  -  SINGLE PLOT ###
+###  GROWTH ANALYSIS  -  MULTI-PLOT ###
 #######################################
 library(jagsUI)
 
 ### Z-TRANSFORM DATA
-z.score <- function (data) {
-  xm<- mean (data, na.rm=TRUE)
-  xsd<-sd(data, na.rm=TRUE)
-  xtrans<-(data-xm)/(2*xsd)  
+z.score <- function (data, center=T, scale=T) {
+  xm <- ifelse(center==T, mean (data, na.rm=TRUE), 0)
+  xsd <- ifelse(scale==T, sd(data, na.rm=TRUE), 2)
+  xtrans <- (data - xm) / (2 * xsd)
   return(xtrans)
 }
 
@@ -32,6 +32,8 @@ load("Panama_AnalysisData_12.9.15.RDA")
 # tdata <- tdata[tdata$Growth.Include.2 == TRUE,]
 d <- tdata[tdata$Growth.Include.3 == TRUE,]
 
+d <- d[d$growth > (-100),]  # ARBITRARY EXCLUSION OF THREE REMAINING OUTLIERS... 
+
 ### Change names for ease
 names(d)[names(d)=='WSG'] <- 'wsg'
 names(d)[names(d)=='log.LDMC_AVI'] <- 'log.ldmc'
@@ -53,23 +55,34 @@ d <- droplevels(d)
 ######################################################################################
 #### Standardize and Center coefficients (within plots, within size classes 10cm) ####
 ######################################################################################
-d$growth.z <- unlist(tapply(d$growth, d$plot, scale, center=F))
 
-### Center / scale DBH within species, within size class
-d$sc <- ifelse(d$dbh <= 100, 1, 2)
-d <- d[order(d$plot, d$spcode, d$sc, d$id, d$census),]
+##### Ontogenetic size class: Center / scale DBH within species, within size class #####
+# size.classes <- tapply(d$dbh, paste(d$spcode, d$plot), quantile, 0.5)
+# d$size.class <- ifelse(d$dbh <= size.classes[match(paste(d$spcode, d$plot), names(size.classes))], 1, 2)
+# sp.size.class <- paste(d$spcode, d$size.class, sep=".")
+# for (i in 1:length(unique(sp.size.class))){
+#   tmp <- sort(unique(sp.size.class))[i]
+#   d$log.dbh.z[sp.size.class %in% tmp] <- z.score(d$log.dbh[sp.size.class %in% tmp])
+# }
+# d$log.dbh.z[is.na(d$log.dbh.z)] <- 0
+
+###### Generic size class: Center / scale DBH within species, within size class #####
+d$size.class <- ifelse(d$dbh <= 100, 1, 2)
+
+d <- d[order(d$plot, d$spcode, d$size.class, d$id, d$census),]
 
 ### Center / scale other variableswithin size class
 for (i in 1:2){
-  d$log.dbh.z[d$sc %in% i] <- unlist(tapply(d$log.dbh[d$sc %in% i], d$plot[d$sc %in% i], z.score))
-  d$log.nci.z[d$sc %in% i] <- unlist(tapply(log(d$nci)[d$sc %in% i], d$plot[d$sc %in% i], z.score))
-  d$log.tnci.wsg.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.wsg[d$sc %in% i], d$plot[d$sc %in% i], z.score))
-  d$log.tnci.log.ldmc.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.log.ldmc[d$sc %in% i], d$plot[d$sc %in% i], z.score))
-  d$log.tnci.log.lma.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.log.lma[d$sc %in% i], d$plot[d$sc %in% i], z.score))
-  d$log.tnci.log.seed.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.log.seed[d$sc %in% i], d$plot[d$sc %in% i], z.score))
-  d$log.tnci.hmax.z[d$sc %in% i] <- unlist(tapply(d$log.tnci.hmax[d$sc %in% i], d$plot[d$sc %in% i], z.score))
+  d$log.dbh.z[d$size.class %in% i] <- z.score(d$log.dbh[d$size.class %in% i])
+  d$log.nci.z[d$size.class %in% i] <- z.score(d$log.nci[d$size.class %in% i])
+  d$log.tnci.wsg.z[d$size.class %in% i] <- z.score(d$log.tnci.wsg[d$size.class %in% i])
+  d$log.tnci.log.ldmc.z[d$size.class %in% i] <- z.score(d$log.tnci.log.ldmc[d$size.class %in% i])
+  d$log.tnci.log.lma.z[d$size.class %in% i] <- z.score(d$log.tnci.log.lma[d$size.class %in% i])
+  d$log.tnci.log.seed.z[d$size.class %in% i] <- z.score(d$log.tnci.log.seed[d$size.class %in% i])
+  d$log.tnci.hmax.z[d$size.class %in% i] <- z.score(d$log.tnci.hmax[d$size.class %in% i])
 }
 
+d$growth.z <- z.score(d$growth, center=F)
 
 #################################
 ####    PREP Continues...    ####
@@ -78,11 +91,10 @@ d$plot <- substring(d$plot, 1, 3)
 
 # CHOOSE A SIZE CLASS TO WORK WITH...
 # for(sc in 1:2) {
-sc <- 1
+sc <- 2
+d <- d[d$size.class %in% sc,]
 
-d <- d[d$sc %in% sc,]
-
-d <- d[,c('spcode','plot','sc','census','growth.z','log.dbh.z','id','log.nci.z', 
+d <- d[,c('spcode','plot','size.class','census','growth.z','log.dbh.z','id','log.nci.z', 
           trait, 
           paste('log.tnci', trait, 'z', sep='.'))]
 
@@ -114,7 +126,8 @@ data = list (
   nplot = length(levels(as.factor(d$plot))),
   growth = as.numeric(d$growth.z),
   nci = as.numeric(d[,'log.nci.z']),
-#  tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
+  census = d$census,  
+  tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
   dbh = as.numeric(d$log.dbh.z),
   trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
   indiv = d$indiv,
@@ -149,30 +162,23 @@ cat(" model {
     for( j in 1:nspecies ) {
       beta.1[j] ~ dnorm(mu.beta.1[plot[j]] + beta.t.1[plot[j]] * trait[j], tau[2])
       beta.2[j] ~ dnorm(mu.beta.2[plot[j]] + beta.t.2[plot[j]] * trait[j], tau[3])
-      beta.3[j] ~ dnorm(mu.beta.3[plot[j]], tau[4])
+      beta.3[j] ~ dnorm(mu.beta.3[plot[j]] + beta.t.3[plot[j]] * trait[j], tau[4])
     }
     
     for( p in 1:nplot ) {
-      mu.beta.1[p] ~ dnorm(mu.beta[1], tau[5])
-      mu.beta.2[p] ~ dnorm(mu.beta[2], tau[6])
-      mu.beta.3[p] ~ dnorm(mu.beta[3], tau[7])
-      beta.t.1[p] ~ dnorm(beta.t[1], tau[8])
-      beta.t.2[p] ~ dnorm(beta.t[2], tau[9])
+      mu.beta.1[p] ~ dnorm(0, 1E-3)
+      mu.beta.2[p] ~ dnorm(0, 1E-3)
+      mu.beta.3[p] ~ dnorm(0, 1E-3)
+      beta.t.1[p] ~ dnorm(0, 1E-3)
+      beta.t.2[p] ~ dnorm(0, 1E-3)
+      beta.t.3[p] ~ dnorm(0, 1E-3)
     }
 
     for( i.a in 1:nindiv ) {
-    indiv.effect[i.a] ~ dnorm(0, tau[10])
+    indiv.effect[i.a] ~ dnorm(0, tau[5])
     }
-    
-    for( b in 1:2 ) {
-    beta.t[b] ~ dnorm(0, 1E-4)
-    }
-    
-    for( m in 1:3 ) {
-    mu.beta[m] ~ dnorm(0, 1E-4)
-    }
-    
-    for( t in 1:10 ) {
+
+    for( t in 1:5 ) {
     tau[t] ~ dgamma(1E-3, 1E-3)
     }
     
@@ -186,13 +192,24 @@ sink()
 ### Set initial values, monitors, iterations and run model ###
 ################################################
 
-# Set initial values
 inits <- function (){
   list(
-    beta.t = rnorm(2),
-    mu.beta = rnorm(3),
-    tau = rgamma(10, 1E3, 1E3))
+    beta.t.1 = rnorm(3),
+    beta.t.2 = rnorm(3),    
+    beta.t.3 = rnorm(3),
+    mu.beta.1 = rnorm(3),
+    mu.beta.2 = rnorm(3),
+    mu.beta.3 = rnorm(3),
+    tau = rgamma(5, 1E3, 1E3))
 }
+
+### Set initial values
+#inits <- function (){
+#  list(
+#    beta.t = rnorm(2),
+#    mu.beta = rnorm(3),
+#    tau = rgamma(10, 1E3, 1E3))
+#}
 
 if(pc==T){ 
   setwd("K:/Bob/Panama/MODELS") 
@@ -201,12 +218,14 @@ if(pc==T){
 }
 
 # Set monitors
-params <- c(paste("beta.t.",1:2,sep=''), paste("mu.beta.",1:3,sep=''),"beta.t","mu.beta","sigma")
+params <- c(paste('beta.t.',1:3,sep=''), 
+            paste('mu.beta.',1:3,sep=''),
+            'sigma')
 
 # Run model
-adapt <- 1000
-iter <- 5000
-burn <- 4000
+adapt <- 100
+iter <- 500
+burn <- 400
 thin <- 5
 chains <- 3
 
