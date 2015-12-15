@@ -67,7 +67,8 @@ d <- droplevels(d)
 # d$log.dbh.z[is.na(d$log.dbh.z)] <- 0
 
 ###### Generic size class: Center / scale DBH within species, within size class #####
-d$size.class <- ifelse(d$dbh <= 100, 1, 2)
+cutoff <- (-100)  # Setting cutoff to neg value will put everything in 1 size class.
+d$size.class <- ifelse(d$dbh <= cutoff, 1, 2)
 
 d <- d[order(d$plot, d$spcode, d$size.class, d$id, d$census),]
 
@@ -91,8 +92,8 @@ d$plot <- substring(d$plot, 1, 3)
 
 # CHOOSE A SIZE CLASS TO WORK WITH...
 # for(sc in 1:2) {
-sc <- 2
-d <- d[d$size.class %in% sc,]
+size <- 2
+d <- d[d$size.class %in% size,]
 
 d <- d[,c('spcode','plot','size.class','census','growth.z','log.dbh.z','id','log.nci.z', 
           trait, 
@@ -135,6 +136,10 @@ data = list (
   plot = as.numeric(as.factor(substring(names(tapply(d[,trait], d$speciesxplot, mean)),1,3)))
 )
 
+### Add an indicator to set individual effect of non-rep indiv to zero
+repindiv <- names(table(data$indiv))[table(data$indiv)>1]
+data$indicator <- as.numeric(data$indiv %in% repindiv)
+
 
 ##############################
 #### Write the model file ####
@@ -156,7 +161,7 @@ cat(" model {
     mu[i] <- beta.1[species[i]]
              + beta.2[species[i]] * nci[i]
              + beta.3[species[i]] * dbh[i]
-             + indiv.effect[indiv[i]]
+             + indiv.effect[indiv[i]] * indicator[i]
     }
     
     for( j in 1:nspecies ) {
@@ -218,16 +223,17 @@ if(pc==T){
 }
 
 # Set monitors
-params <- c(paste('beta.t.',1:3,sep=''), 
+params <- c('beta.1', 'beta.2', 'beta.3',
+            paste('beta.t.',1:3,sep=''), 
             paste('mu.beta.',1:3,sep=''),
             'sigma')
 
 # Run model
 adapt <- 100
-iter <- 500
-burn <- 400
-thin <- 5
-chains <- 3
+iter <- 5000
+burn <- 4000
+thin <- 4
+chains <- 2
 
 mod <- jagsUI::jags(data, inits, params, 
                     "growth_3level_NCI.bug", 
@@ -272,13 +278,13 @@ assign(paste(focal.plot,trait,sep='_'), readRDS(file))
 
 
 
-plot.coeffs <- function(mod){
+plot.coeffs <- function(mod, col=1){
   x <- cbind(unlist(mod$q50),unlist(mod$q2.5),unlist(mod$q97.5))
   x <- x[-grep('deviance',rownames(x)),]
   x <- x[-grep('sigma',rownames(x)),]
-  bg <- ifelse(sign(x[,2])==sign(x[,3]), 1, 0)
-  plot(x[,1],ylim=c(min(x), max(x)), pch=21, bg=bg, axes=F, ylab='Std. Effect', xlab='', cex=1.5)
-  arrows(1:nrow(x), x[,2], 1:nrow(x), x[,3], angle=90, code=3, len=0.05)
+  bg <- ifelse(sign(x[,2])==sign(x[,3]), col, 0)
+  plot(x[,1], ylim=c(min(x), max(x)), pch=21, col=col, bg=bg, axes=F, ylab='Std. Effect', xlab='', cex=1.5)
+  arrows(1:nrow(x), x[,2], 1:nrow(x), x[,3], angle=90, code=3, len=0.05, col=col)
   abline(h=0,lty=2)
   axis(1, labels=rownames(x), at=1:nrow(x), las=2)
   axis(2); box()
@@ -286,8 +292,8 @@ plot.coeffs <- function(mod){
   n <- lapply(mod$sims.list[s], function(x) apply(x, 2, quantile, c(0.05, 0.95)))
   b <- unlist(lapply(n, function(x)x[1,]))
   t <- unlist(lapply(n, function(x)x[2,]))
-  segments(1:nrow(x), b, 1:nrow(x), t, lwd=4)
-  points(x[,1], pch=21, bg=bg, cex=2)
+  segments(1:nrow(x), b, 1:nrow(x), t, lwd=4, col=col)
+  points(x[,1], pch=21, bg=bg, cex=2, col=col)
 }
 
 
