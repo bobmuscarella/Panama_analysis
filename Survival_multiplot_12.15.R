@@ -153,14 +153,13 @@ cat(" model {
     
     alive[i] ~ dbern(t[i])
     
-    t[i] <- pow(z[i], days[i]/365)
+    t[i] <- pow(z[i], days[i]/365.25)
     
     logit(z[i]) <- beta.1[species[i]]
     + beta.2[species[i]] * nci[i]
     + beta.3[species[i]] * dbh[i]
     + beta.4[species[i]] * nci[i] * dbh[i]
-    + indiv.effect[indiv[i]]
-    + census.effect[census[i]] * indicator[i]
+    + indiv.effect[indiv[i]] * indicator[i]
     }
     
     for( j in 1:nspecies ) {
@@ -181,15 +180,11 @@ cat(" model {
     beta.t.4[p] ~ dnorm(0, 1E-4)
     }
 
-    for( c.a in 1:ncensus ) {
-    census.effect[c.a] ~ dnorm(0, tau[5])
-    }
-
     for( i.a in 1:nindiv ) {
-    indiv.effect[i.a] ~ dnorm(0, tau[6])
+    indiv.effect[i.a] ~ dnorm(0, tau[5])
     }
     
-    for( t in 1:6 ) {
+    for( t in 1:5 ) {
     tau[t] ~ dgamma(1E-3, 1E-3)
     }
     
@@ -215,7 +210,7 @@ inits <- function (){
     mu.beta.2 = rnorm(3),
     mu.beta.3 = rnorm(3),
     mu.beta.4 = rnorm(3),
-    tau = rgamma(6, 1E3, 1E3))
+    tau = rgamma(5, 1E3, 1E3))
 }
 
 if(pc==T){ 
@@ -231,11 +226,12 @@ params <- c(paste("beta.t.",1:4,sep=''),
 
 # Run model
 adapt <- 1000
-iter <- 5000
-burn <- 4000
-thin <- 4
+iter <- 10000
+burn <- 8000
+thin <- 5
 chains <- 3
 
+Sys.time()
 smod <- jagsUI::jags(data, inits, params, 
                      "survive_3level_NCI_NCIXDBH.bug", 
                      n.chains=chains, n.adapt=adapt, n.iter=iter, 
