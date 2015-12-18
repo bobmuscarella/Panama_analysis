@@ -1,8 +1,8 @@
 #######################################
-###  GROWTH ANALYSIS
-###  ALL-PLOT
+###  SURVIVAL ANALYSIS
+###  ALL-PLOTS
 ###  ONLY NCI, DBH BY SIZE CLASS
-###  Results in "K:/Bob/Panama/RESULTS/_12.17.15/growth/nci_dbh_sizes"
+###  Results in "K:/Bob/Panama/RESULTS/_12.17.15/survival/3level/"
 #######################################
 
 library(jagsUI)
@@ -27,9 +27,6 @@ load("Panama_AnalysisData_12.9.15.RDA")
 ###########################
 #### Prepare data for input  ####
 ###########################
-tdata <- tdata[tdata$Growth.Include.3 == TRUE,]
-tdata <- tdata[tdata$growth > (-75),]
-
 names(tdata)[names(tdata)=='WSG'] <- 'wsg'
 names(tdata)[names(tdata)=='log.LDMC_AVI'] <- 'log.ldmc'
 names(tdata)[names(tdata)=='log.LMALEAF_AVI'] <- 'log.lma'
@@ -63,7 +60,6 @@ for (trt in 1:length(traits)) {
   for (i in 1:2){
     d$log.dbh.z[d$size.class %in% i] <- z.score(d$log.dbh[d$size.class %in% i])
     d$log.nci.z[d$size.class %in% i] <- z.score(d$log.nci[d$size.class %in% i])
-    d$growth.z[d$size.class %in% i] <- z.score(d$growth[d$size.class %in% i], center=F)
   }
   
     dp <- d
@@ -71,7 +67,7 @@ for (trt in 1:length(traits)) {
     for(size in 1:2) {
       dps <- dp[dp$size.class %in% size,]
       
-      dps <- dps[,c('spcode','plot','size.class','census','growth.z','log.dbh.z','id','log.nci.z', 
+      dps <- dps[,c('spcode','plot','size.class','census','survival','log.dbh.z','id','log.nci.z',
                     trait)]
       
       # Drop factors for correct indexing
@@ -92,7 +88,8 @@ for (trt in 1:length(traits)) {
         ntree = nrow(dps),
         nindiv = length(unique(dps$id)),
         nspecies = length(unique(dps$spcode)),
-        growth = as.numeric(dps$growth.z),
+        survival = as.numeric(dps$survival),
+        days = as.numeric(dps$days),
         nci = as.numeric(dps[,'log.nci.z']),
         ncensus = length(unique(paste(dps$census, dps$plot, sep=''))),
         census = as.numeric(as.factor(paste(dps$census, dps$plot, sep=''))),  
@@ -113,15 +110,17 @@ for (trt in 1:length(traits)) {
       ##############################
       setwd("K:/Bob/Panama/MODELS") 
       
-      sink("growth_3level_NCI.bug")
+      sink("survival_3level_NCI.bug")
       
       cat(" model {
           
           for( i in 1:ntree ) {
+
+          alive[i] ~ dbern(t[i])
           
-          growth[i] ~ dnorm(mu[i], tau[1])
+          t[i] <- pow(z[i], days[i]/365.25)
           
-          mu[i] <- beta.1[species[i]]
+          logit(z[i]) <- beta.1[species[i]]
           + beta.2[species[i]] * nci[i]
           + beta.3[species[i]] * dbh[i]
           + indiv.effect[indiv[i]] * indicator[i]
@@ -129,9 +128,9 @@ for (trt in 1:length(traits)) {
           }
           
           for( j in 1:nspecies ) {
-          beta.1[j] ~ dnorm(mu.beta.1[plot[j]] + beta.t.1[plot[j]] * trait[j], tau[2])
-          beta.2[j] ~ dnorm(mu.beta.2[plot[j]] + beta.t.2[plot[j]] * trait[j], tau[3])
-          beta.3[j] ~ dnorm(mu.beta.3[plot[j]], tau[4])
+          beta.1[j] ~ dnorm(mu.beta.1[plot[j]] + beta.t.1[plot[j]] * trait[j], tau[1])
+          beta.2[j] ~ dnorm(mu.beta.2[plot[j]] + beta.t.2[plot[j]] * trait[j], tau[2])
+          beta.3[j] ~ dnorm(mu.beta.3[plot[j]], tau[3])
           }
           
           for( m in 1:nplot ) {
@@ -146,14 +145,14 @@ for (trt in 1:length(traits)) {
           }
           
           for( c.a in 1:ncensus ) {
-          census.effect[c.a] ~ dnorm(0, tau[5])
+          census.effect[c.a] ~ dnorm(0, tau[4])
           }
           
           for( i.a in 1:nindiv ) {
-          indiv.effect[i.a] ~ dnorm(0, tau[6])
+          indiv.effect[i.a] ~ dnorm(0, tau[5])
           }
           
-          for( t in 1:6 ) {
+          for( t in 1:5 ) {
           tau[t] ~ dgamma(1E-3, 1E-3)
           }
           
@@ -171,15 +170,11 @@ for (trt in 1:length(traits)) {
           list(
             beta.t = rnorm(2),
             mu.beta = rnorm(3),    
-            tau = rgamma(6, 1E3, 1E3))
+            tau = rgamma(5, 1E3, 1E3))
         }
 
-      if(pc==T){ 
-        setwd("K:/Bob/Panama/MODELS") 
-      } else {
-        setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
-      }
-      
+      setwd("K:/Bob/Panama/MODELS") 
+
       # Set monitors
       params <- c('beta.t','mu.beta','sigma')
       
@@ -190,7 +185,7 @@ for (trt in 1:length(traits)) {
       thin <- 5
       chains <- 3
       
-      modfile <- "growth_3level_NCI.bug"
+      modfile <- "survival_3level_NCI.bug"
       
       print(paste("Now working on:", trait, ifelse(size==1,'sm','lg'),sep="."))
       
@@ -205,7 +200,7 @@ for (trt in 1:length(traits)) {
         }
       }
       
-      setwd("K:/Bob/Panama/RESULTS/_12.17.15/growth/3level/nci_dbh_sizes") 
+      setwd("K:/Bob/Panama/RESULTS/_12.17.15/survival/3level/") 
       
       file <- paste('allplots', trait, ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
       saveRDS(mod, file=file)
