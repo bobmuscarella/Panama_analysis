@@ -91,15 +91,15 @@ for (trt in 1:length(traits)) {
       data = list (
         ntree = nrow(dps),
         nindiv = length(unique(dps$id)),
-        nspecies = length(unique(dps$spcode)),
+        nspecies = length(unique(dps$speciesxplot)),
         growth = as.numeric(dps$growth.z),
         nci = as.numeric(dps[,'log.nci.z']),
         ncensus = length(unique(paste(dps$census, dps$plot, sep=''))),
         census = as.numeric(as.factor(paste(dps$census, dps$plot, sep=''))),  
         dbh = as.numeric(dps$log.dbh.z),
-        trait = z.score(tapply(dps[,trait], dps$spcode, mean)),
+        trait = z.score(tapply(dps[,trait], dps$speciesxplot, mean)),
         indiv = dps$indiv,
-        species = as.numeric(dps$spcode),
+        species = as.numeric(dps$speciesxplot),
         nplot = length(levels(as.factor(dps$plot))),
         plot = as.numeric(substring(names(tapply(dps[,trait], dps$speciesxplot, mean)),1,1))
       )
@@ -169,8 +169,11 @@ for (trt in 1:length(traits)) {
 
         inits <- function (){
           list(
-            beta.t = rnorm(2),
-            mu.beta = rnorm(3),    
+            beta.t.1 = rnorm(3),
+            beta.t.1 = rnorm(3),
+            mu.beta.1 = rnorm(3),    
+            mu.beta.2 = rnorm(3),    
+            mu.beta.3 = rnorm(3),    
             tau = rgamma(6, 1E3, 1E3))
         }
 
@@ -181,7 +184,7 @@ for (trt in 1:length(traits)) {
       }
       
       # Set monitors
-      params <- c('beta.t','mu.beta','sigma')
+      params <- c('beta.t.1','beta.t.2','mu.beta.1','mu.beta.2','mu.beta.3','sigma')
       
       # Run model
       adapt <- 2000
