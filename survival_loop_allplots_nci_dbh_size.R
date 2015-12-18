@@ -96,7 +96,7 @@ for (trt in 1:length(traits)) {
         dbh = as.numeric(dps$log.dbh.z),
         trait = z.score(tapply(dps[,trait], dps$speciesxplot, mean)),
         indiv = dps$indiv,
-        species = as.numeric(dps$speciesxplot),
+        species = as.numeric(as.factor(dps$speciesxplot)),
         nplot = length(levels(as.factor(dps$plot))),
         plot = as.numeric(substring(names(tapply(dps[,trait], dps$speciesxplot, mean)),1,1))
       )
