@@ -4,8 +4,8 @@
 library(jagsUI)
 
 ### Z-TRANSFORM DATA
-z.score <- function (data) {
-  xm<- mean (data, na.rm=TRUE)
+z.score <- function (data, center=T) {
+  xm<- ifelse(center==T, mean(data, na.rm=TRUE), 0)
   xsd<-sd(data, na.rm=TRUE)
   xtrans<-(data-xm)/(2*xsd)  
 }
@@ -25,7 +25,7 @@ if(pc==T){
 load("Panama_AnalysisData_12.9.15.RDA")
 d <- tdata
 
-d <- d[d$census==2,]
+#d <- d[d$census==2,]
 
 #################################
 #### Prepare data for input  ####
@@ -48,26 +48,36 @@ trait <- traits[i]
 d <- d[!is.na (d[,trait]),]  					
 d <- droplevels(d)
 
-################################################################
-####    Standardize and Center coefficients within plots    ####
-################################################################
-d <- d[order(d$plot, d$spcode, d$id, d$census),]
+######################################################################################
+#### Standardize and Center coefficients (within plots, within size classes 10cm) ####
+######################################################################################
+##### Ontogenetic size class: Center / scale DBH within species, within size class #####
+# size.classes <- tapply(d$dbh, paste(d$spcode, d$plot), quantile, 0.5)
+# d$size.class <- ifelse(d$dbh <= size.classes[match(paste(d$spcode, d$plot), names(size.classes))], 1, 2)
+# sp.size.class <- paste(d$spcode, d$size.class, sep=".")
+# for (i in 1:length(unique(sp.size.class))){
+#   tmp <- sort(unique(sp.size.class))[i]
+#   d$log.dbh.z[sp.size.class %in% tmp] <- z.score(d$log.dbh[sp.size.class %in% tmp])
+# }
+# d$log.dbh.z[is.na(d$log.dbh.z)] <- 0
 
-d$growth.z <- unlist(tapply(d$growth, d$plot, scale, center=F))
-d$log.nci.z <- unlist(tapply(d$log.nci, d$plot, z.score))
-d$log.dbh.z <- unlist(tapply(d$log.dbh, d$plot, z.score))
+###### Generic size class: Center / scale DBH within species, within size class #####
+cutoff <- (-100)  # Setting cutoff to neg value will put everything in 1 size class.
+d$size.class <- ifelse(d$dbh <= cutoff, 1, 2)
 
-d$log.tnci.wsg.z <- unlist(tapply(d$log.tnci.wsg, d$plot, z.score))
-d$log.tnci.log.ldmc.z <- unlist(tapply(d$log.tnci.log.ldmc, d$plot, z.score))
-d$log.tnci.log.lma.z <- unlist(tapply(d$log.tnci.log.lma, d$plot, z.score))
-d$log.tnci.log.seed.z <- unlist(tapply(d$log.tnci.log.seed, d$plot, z.score))
-d$log.tnci.hmax.z <- unlist(tapply(d$log.tnci.hmax, d$plot, z.score))
+d <- d[order(d$plot, d$spcode, d$size.class, d$id, d$census),]
 
-d$log.unci.wsg.z <- unlist(tapply(d$log.unci.wsg, d$plot, z.score))
-d$log.unci.log.ldmc.z <- unlist(tapply(d$log.unci.log.ldmc, d$plot, z.score))
-d$log.unci.log.lma.z <- unlist(tapply(d$log.unci.log.lma, d$plot, z.score))
-d$log.unci.log.seed.z <- unlist(tapply(d$log.unci.log.seed, d$plot, z.score))
-d$log.unci.hmax.z <- unlist(tapply(d$log.unci.hmax, d$plot, z.score))
+### Center / scale other variableswithin size class
+for (i in 1:2){
+  d$log.dbh.z[d$size.class %in% i] <- z.score(d$log.dbh[d$size.class %in% i])
+  d$log.nci.z[d$size.class %in% i] <- z.score(d$log.nci[d$size.class %in% i])
+  d$log.tnci.wsg.z[d$size.class %in% i] <- z.score(d$log.tnci.wsg[d$size.class %in% i])
+  d$log.tnci.log.ldmc.z[d$size.class %in% i] <- z.score(d$log.tnci.log.ldmc[d$size.class %in% i])
+  d$log.tnci.log.lma.z[d$size.class %in% i] <- z.score(d$log.tnci.log.lma[d$size.class %in% i])
+  d$log.tnci.log.seed.z[d$size.class %in% i] <- z.score(d$log.tnci.log.seed[d$size.class %in% i])
+  d$log.tnci.hmax.z[d$size.class %in% i] <- z.score(d$log.tnci.hmax[d$size.class %in% i])
+}
+
 
 d$plot <- substring(d$plot, 1, 3)
 
@@ -79,8 +89,7 @@ p <- 2
 
 d <- d[,c('spcode','plot','census','survival','log.dbh.z','id','log.nci.z','days',
           trait, 
-          paste('log.tnci', trait, 'z', sep='.'), 
-          paste('log.unci', trait, 'z', sep='.'))]
+          paste('log.tnci', trait, 'z', sep='.'))]
 
 focal.plot <- plots[p]
 d <- d[d$plot %in% focal.plot,]
@@ -120,6 +129,10 @@ data = list (
   species = as.numeric(d$speciesxplot)
 )
 
+### Add an indicator to set individual effect of non-rep indiv to zero
+repindiv <- names(table(data$indiv))[table(data$indiv)>1]
+data$indicator <- as.numeric(data$indiv %in% repindiv)
+
 
 ##############################
 #### Write the model file ####
@@ -129,6 +142,55 @@ if(pc==T){
 } else {
   setwd("/Users/Bob/Projects/Postdoc/Panama/MODELS")
 }
+
+sink("survive_2level_power_NCI_NCIXDBH.bug")
+
+cat(" model {
+    
+    for( i in 1:ntree ) {
+    
+    alive[i] ~ dbern(t[i])
+    
+    t[i] <- pow(z[i], days[i]/365.25)
+    
+    logit(z[i]) <- beta.1[species[i]]
+    + beta.2[species[i]] * nci[i]
+    + beta.3[species[i]] * dbh[i]
+    + beta.4[species[i]] * nci[i] * dbh[i]
+    + indiv.effect[indiv[i]] * indicator[i]
+    }
+    
+    for( j in 1:nspecies ) {
+    beta.1[j] ~ dnorm(mu.beta[1] + beta.t[1] * trait[j], tau[1])
+    beta.2[j] ~ dnorm(mu.beta[2] + beta.t[2] * trait[j], tau[2])
+    beta.3[j] ~ dnorm(mu.beta[3] + beta.t[3] * trait[j], tau[3])
+    beta.4[j] ~ dnorm(mu.beta[4] + beta.t[4] * trait[j], tau[4])
+    }
+    
+    for( i.a in 1:nindiv ) {
+    indiv.effect[i.a] ~ dnorm(0, tau[5])
+    }
+    
+    for( b in 1:4 ) {
+    beta.t[b] ~ dnorm(0, 1E-3)
+    }
+    
+    for( m in 1:4 ) {
+    mu.beta[m] ~ dnorm(0, 1E-3)
+    }
+    
+    for( t in 1:5 ) {
+    tau[t] ~ dgamma(1E-3, 1E-3)
+    }
+    
+    sigma <- 1 / sqrt(tau)
+    r ~ dgamma(1E-3, 1E-3)
+    
+    }"
+, fill=TRUE)
+sink()
+
+
 
 sink("survive_2level_NCI_NCIXDBH.bug")
 
@@ -238,13 +300,20 @@ sink()
 ################################################
 
 # Set initial values
+#inits <- function (eps=0.1){
+#  list(
+#    beta.t = rnorm(3),
+#    mu.beta = rnorm(4),
+#    tau = rgamma(5, 1E3, 1E3),
+#    r = 2,
+#    t = with(data, days + ifelse(alive, eps, -eps)))
+#}
+
 inits <- function (eps=0.1){
   list(
-    beta.t = rnorm(3),
+    beta.t = rnorm(4),
     mu.beta = rnorm(4),
-    tau = rgamma(5, 1E3, 1E3),
-    r = 2,
-    t = with(data, days + ifelse(alive, eps, -eps)))
+    tau = rgamma(5, 1E3, 1E3))
 }
 
 if(pc==T){ 
@@ -258,34 +327,17 @@ if(pc==T){
 params <- c("beta.t","mu.beta","sigma","r")
 
 # Run model
-adapt <- 2000
-iter <- 20000
-burn <- 15000
-thin <- 5
-chains <- 4
-
-initsmod <- jagsUI::jags(data, inits, params, 
-                    "survive_2level_NCI_NCIXDBH.bug", 
-                    n.chains=chains, n.adapt=adapt, n.iter=iter, 
-                    n.burnin=burn, n.thin=thin, parallel=T)
-
-start <- inits()
-start$beta.t <- initsmod$q50$beta.t
-start$mu.beta <- initsmod$q50$mu.beta
-start$r <- initsmod$q50$r
-start$tau <- 1/(initsmod$q50$sigma^2)
-
-
-adapt <- 500
+adapt <- 1000
 iter <- 5000
-burn <- 2500
-thin <- 5
+burn <- 4000
+thin <- 4
 chains <- 4
 
-mod <- jagsUI::jags(data, list(start,start,start,start), params, 
-                    "survive_2level_NCI_NCIXDBH.bug", 
+coc.smod <- jagsUI::jags(data, inits, params, 
+                    "survive_2level_power_NCI_NCIXDBH.bug", 
                     n.chains=chains, n.adapt=adapt, n.iter=iter, 
                     n.burnin=burn, n.thin=thin, parallel=T)
+
 
 
 

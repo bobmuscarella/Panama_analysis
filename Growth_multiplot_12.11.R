@@ -67,7 +67,7 @@ d <- droplevels(d)
 # d$log.dbh.z[is.na(d$log.dbh.z)] <- 0
 
 ###### Generic size class: Center / scale DBH within species, within size class #####
-cutoff <- (-100)  # Setting cutoff to neg value will put everything in 1 size class.
+cutoff <- (100)  # Setting cutoff to neg value will put everything in 1 size class.
 d$size.class <- ifelse(d$dbh <= cutoff, 1, 2)
 
 d <- d[order(d$plot, d$spcode, d$size.class, d$id, d$census),]
@@ -88,11 +88,11 @@ d$growth.z <- z.score(d$growth, center=F)
 #################################
 ####    PREP Continues...    ####
 #################################
-d$plot <- substring(d$plot, 1, 3)
+d$plot <- ifelse(d$plot=='bci', 2, ifelse(d$plot=='cocoli', 1, 3))
 
 # CHOOSE A SIZE CLASS TO WORK WITH...
 # for(sc in 1:2) {
-size <- 2
+size <- 1
 d <- d[d$size.class %in% size,]
 
 d <- d[,c('spcode','plot','size.class','census','growth.z','log.dbh.z','id','log.nci.z', 
@@ -127,13 +127,14 @@ data = list (
   nplot = length(levels(as.factor(d$plot))),
   growth = as.numeric(d$growth.z),
   nci = as.numeric(d[,'log.nci.z']),
-  census = d$census,  
+  ncensus =  length(unique(paste(d$census, d$plot, sep=''))),
+  census = as.numeric(as.factor(paste(d$census, d$plot, sep=''))),  
   tnci = as.numeric(d[,paste('log.tnci.', trait, '.z', sep='')]),
   dbh = as.numeric(d$log.dbh.z),
   trait = z.score(tapply(d[,trait], d$speciesxplot, mean)),
   indiv = d$indiv,
   species = as.numeric(d$speciesxplot),
-  plot = as.numeric(as.factor(substring(names(tapply(d[,trait], d$speciesxplot, mean)),1,3)))
+  plot = as.numeric(substring(names(tapply(d[,trait], d$speciesxplot, mean)),1,1))
 )
 
 ### Add an indicator to set individual effect of non-rep indiv to zero
@@ -161,29 +162,41 @@ cat(" model {
     mu[i] <- beta.1[species[i]]
              + beta.2[species[i]] * nci[i]
              + beta.3[species[i]] * dbh[i]
+#             + beta.4[species[i]] * dbh[i] * nci[i]
              + indiv.effect[indiv[i]] * indicator[i]
+             + census.effect[census[i]]
     }
     
     for( j in 1:nspecies ) {
       beta.1[j] ~ dnorm(mu.beta.1[plot[j]] + beta.t.1[plot[j]] * trait[j], tau[2])
       beta.2[j] ~ dnorm(mu.beta.2[plot[j]] + beta.t.2[plot[j]] * trait[j], tau[3])
       beta.3[j] ~ dnorm(mu.beta.3[plot[j]] + beta.t.3[plot[j]] * trait[j], tau[4])
+#      beta.4[j] ~ dnorm(mu.beta.4[plot[j]] + beta.t.4[plot[j]] * trait[j], tau[5])
     }
     
     for( p in 1:nplot ) {
       mu.beta.1[p] ~ dnorm(0, 1E-3)
       mu.beta.2[p] ~ dnorm(0, 1E-3)
       mu.beta.3[p] ~ dnorm(0, 1E-3)
+#      mu.beta.4[p] ~ dnorm(0, 1E-3)
       beta.t.1[p] ~ dnorm(0, 1E-3)
       beta.t.2[p] ~ dnorm(0, 1E-3)
       beta.t.3[p] ~ dnorm(0, 1E-3)
+#      beta.t.4[p] ~ dnorm(0, 1E-3)
+    }
+
+    for( c.a in 1:ncensus ) {
+    census.effect[c.a] ~ dnorm(0, tau[5])
+#    census.effect[c.a] ~ dnorm(0, tau[6])
     }
 
     for( i.a in 1:nindiv ) {
-    indiv.effect[i.a] ~ dnorm(0, tau[5])
+    indiv.effect[i.a] ~ dnorm(0, tau[6])
+#    indiv.effect[i.a] ~ dnorm(0, tau[7])
     }
 
-    for( t in 1:5 ) {
+    for( t in 1:6 ) {
+#    for( t in 1:7 ) {
     tau[t] ~ dgamma(1E-3, 1E-3)
     }
     
@@ -202,19 +215,14 @@ inits <- function (){
     beta.t.1 = rnorm(3),
     beta.t.2 = rnorm(3),    
     beta.t.3 = rnorm(3),
+#    beta.t.4 = rnorm(3),
     mu.beta.1 = rnorm(3),
     mu.beta.2 = rnorm(3),
     mu.beta.3 = rnorm(3),
-    tau = rgamma(5, 1E3, 1E3))
+#    mu.beta.4 = rnorm(3),
+#    tau = rgamma(7, 1E3, 1E3))
+    tau = rgamma(6, 1E3, 1E3))
 }
-
-### Set initial values
-#inits <- function (){
-#  list(
-#    beta.t = rnorm(2),
-#    mu.beta = rnorm(3),
-#    tau = rgamma(10, 1E3, 1E3))
-#}
 
 if(pc==T){ 
   setwd("K:/Bob/Panama/MODELS") 
@@ -223,28 +231,73 @@ if(pc==T){
 }
 
 # Set monitors
-params <- c('beta.1', 'beta.2', 'beta.3',
-            paste('beta.t.',1:3,sep=''), 
-            paste('mu.beta.',1:3,sep=''),
+params <- c(
+            'beta.1', 'beta.2', 'beta.3', 'beta.4',
+            paste('beta.t.',1:4,sep=''), 
+            paste('mu.beta.',1:4,sep=''),
             'sigma')
 
 # Run model
-adapt <- 100
-iter <- 5000
-burn <- 4000
-thin <- 4
-chains <- 2
+adapt <- 1000
+iter <- 2000
+burn <- 1500
+thin <- 2
+chains <- 3
 
-mod <- jagsUI::jags(data, inits, params, 
+Sys.time()
+gmod_small <- jagsUI::jags(data, inits, params, 
                     "growth_3level_NCI.bug", 
                     n.chains=chains, n.adapt=adapt, n.iter=iter, 
-                    n.burnin=burn, n.thin=thin, parallel=F)
+                    n.burnin=burn, n.thin=thin, parallel=T)
 
-mod
+
+#gmod_small <- update(gmod_small, n.iter=10000)
+
+
+gmod
+gmod_big
+
 
 plot(mod)
 
-plot.coeffs(mod)
+library(wesanderson)
+col <- wes_palette("Cavalcanti")[c(1,4,2)]
+
+plot.coeffs(gmod, col=col)
+
+plot.hyp.coeffs(gmod_small, col=col)
+abline(v=seq(0.5,(3.5*7), by=3), lty=3)
+plot.sp.coeffs(gmod, data, 'beta.3')
+
+
+plot(gmod_small$samples[,paste('beta.t.4[',1:3,']',sep='')])
+plot(gmod_small$samples[,paste('mu.beta.4[',1:3,']',sep='')])
+plot(gmod_small$samples[,paste('sigma[',1:4,']',sep='')])
+
+
+
+# EXPLORE SPECIES-SPECIFIC SHIFTS OF PARAMETERS BETWEEN PLOTS
+plot.sp.coeffs <- function(mod, data, param){
+  spplot <- names(data$trait)
+  x <- mod$q50[[param]]
+  names(x) <- names(data$trait)
+  spp <- unlist(lapply(strsplit(spplot, '[.]'), function(x) x[2]))
+  spbeta <- matrix(nrow=length(unique(spp)), ncol=3)
+  rownames(spbeta) <- unique(spp)
+  colnames(spbeta) <- c('coc','bci','she')
+  spbeta[,1] <- x[match(paste('coc', rownames(spbeta), sep='.'), names(x))]
+  spbeta[,2] <- x[match(paste('bci', rownames(spbeta), sep='.'), names(x))]
+  spbeta[,3] <- x[match(paste('she', rownames(spbeta), sep='.'), names(x))]
+  tmp <- spbeta[rowSums(!is.na(spbeta)) > 1,]
+  plot(c(1,3), range(tmp, na.rm=T), pch=NA)
+  for(i in 1:nrow(tmp)){
+    points(1:3, tmp[i,], type='l')#, col=rainbow(nrow(tmp))[i])
+  }
+  points(1:3, colMeans(spbeta, na.rm=T), pch=16, type='b', lwd=4, col=4)
+  abline(h=0, lty=2, lwd=2, col=2)
+}
+
+
 
 for(i in 1:3) {
   if(sum(unlist(mod$Rhat) > 1.1) > 0){
@@ -278,21 +331,40 @@ assign(paste(focal.plot,trait,sep='_'), readRDS(file))
 
 
 
-plot.coeffs <- function(mod, col=1){
+plot.coeffs <- function(mod, col=1, sigma=F){
   x <- cbind(unlist(mod$q50),unlist(mod$q2.5),unlist(mod$q97.5))
   x <- x[-grep('deviance',rownames(x)),]
-  x <- x[-grep('sigma',rownames(x)),]
+  if(sigma==F) {x <- x[-grep('sigma',rownames(x)),]}
   bg <- ifelse(sign(x[,2])==sign(x[,3]), col, 0)
   plot(x[,1], ylim=c(min(x), max(x)), pch=21, col=col, bg=bg, axes=F, ylab='Std. Effect', xlab='', cex=1.5)
   arrows(1:nrow(x), x[,2], 1:nrow(x), x[,3], angle=90, code=3, len=0.05, col=col)
   abline(h=0,lty=2)
   axis(1, labels=rownames(x), at=1:nrow(x), las=2)
   axis(2); box()
-  s <- which(!names(mod$sims.list) %in% c('sigma', 'deviance'))
+  if(sigma==F) {s <- which(!names(mod$sims.list) %in% c('sigma', 'deviance'))}
+  if(sigma==T) {s <- which(!names(mod$sims.list) %in% c('deviance'))}
   n <- lapply(mod$sims.list[s], function(x) apply(x, 2, quantile, c(0.05, 0.95)))
   b <- unlist(lapply(n, function(x)x[1,]))
   t <- unlist(lapply(n, function(x)x[2,]))
   segments(1:nrow(x), b, 1:nrow(x), t, lwd=4, col=col)
+  points(x[,1], pch=21, bg=bg, cex=2, col=col)
+}
+
+
+
+plot.hyp.coeffs <- function(mod, col=1){
+  x <- cbind(unlist(mod$q50),unlist(mod$q2.5),unlist(mod$q97.5))
+  x <- x[-grep('deviance', rownames(x)),]
+  x <- x[-grep('sigma', rownames(x)),]
+  x1 <- x[grep(c('beta.t'), rownames(x)),]
+  x2 <- x[grep(c('mu.beta'), rownames(x)),]
+  x <- rbind(x1, x2)
+  bg <- ifelse(sign(x[,2])==sign(x[,3]), col, 0)
+  plot(x[,1], ylim=c(min(x), max(x)), pch=21, col=col, bg=bg, axes=F, ylab='Std. Effect', xlab='', cex=1.5)
+  arrows(1:nrow(x), x[,2], 1:nrow(x), x[,3], angle=90, code=3, len=0.05, col=col)
+  abline(h=0,lty=2)
+  axis(1, labels=rownames(x), at=1:nrow(x), las=2)
+  axis(2); box()
   points(x[,1], pch=21, bg=bg, cex=2, col=col)
 }
 
