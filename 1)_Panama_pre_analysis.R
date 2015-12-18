@@ -303,51 +303,56 @@ Full.Neigh.Fun <- function(i, tdata){
                     & tdata$census == foc.tree$census 
                     & tdata$plot == foc.tree$plot,]
     
-    # If some of the neighboring stems have the same coordinates as focal tree, add a slight offset
-    # Changes stems with same coordinates
-    if(sum(((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2) > 0){
-      neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] <- neighz[((neighz$x == foc.tree$x) + (neighz$y == foc.tree$y)) == 2 ,3:4] + c(0.25, 0.25)
+    dist2 <- (neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2    
+    diam2 <- (neighz$dbh/10)^2    
+    bigneighz <- neighz[neighz$dbh >= foc.tree$dbh,]
+    bigdist2 <- (bigneighz$x - foc.tree$x)^2 + (bigneighz$y - foc.tree$y)^2    
+    bigdiam2 <- (bigneighz$dbh/10)^2    
+    
+    # If some of the neighbors have same coords as focal.tree, add an offset
+    if(0 %in% dist2){
+      neighz[dist==0 ,3:4] <- neighz[dist==0, 3:4] + 0.25
+      bigneighz[dist==0 ,3:4] <- bigneighz[dist==0, 3:4] + 0.25
     }
     
     # Calculate NCI using DBH^2 and dist^-2
-    All.NCI <- sum(na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)))
-    neighzbigger <- neighz[neighz$dbh >= foc.tree$dbh,]
-    Big.NCI <- sum(na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)))
-
+    All.NCI <- sum(diam2/dist2)
+    Big.NCI <- sum(bigdiam2/bigdist2)
+    
     wsg.diff <- foc.tree[,'WSG'] - neighz[,'WSG']
     lma.diff <- foc.tree[,'log.LMALEAF_AVI'] - neighz[,'log.LMALEAF_AVI']
     ldmc.diff <- foc.tree[,'log.LDMC_AVI'] - neighz[,'log.LDMC_AVI']
     ss.diff <- foc.tree[,'log.SEED_DRY'] - neighz[,'log.SEED_DRY']
     hmax.diff <- foc.tree[,'HEIGHT_AVG'] - neighz[,'HEIGHT_AVG']
     
-    All.NCI.wsg.h <- sum(wsg.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.wsg.a <- sum(abs(wsg.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.lma.h <- sum(lma.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.lma.a <- sum(abs(lma.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.ldmc.h <- sum(ldmc.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.ldmc.a <- sum(abs(ldmc.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.ss.h <- sum(ss.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.ss.a <- sum(abs(ss.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.hmax.h <- sum(hmax.diff * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
-    All.NCI.hmax.a <- sum(abs(hmax.diff) * na.omit(neighz$dbh^2/((neighz$x - foc.tree$x)^2 + (neighz$y - foc.tree$y)^2)), na.rm=T)
+    All.NCI.wsg.h <- sum(wsg.diff * (diam2/dist2), na.rm=T)
+    All.NCI.wsg.a <- sum(abs(wsg.diff) * (diam2/dist2), na.rm=T)
+    All.NCI.lma.h <- sum(lma.diff * (diam2/dist2), na.rm=T)
+    All.NCI.lma.a <- sum(abs(lma.diff) * (diam2/dist2), na.rm=T)
+    All.NCI.ldmc.h <- sum(ldmc.diff * (diam2/dist2), na.rm=T)
+    All.NCI.ldmc.a <- sum(abs(ldmc.diff) * (diam2/dist2), na.rm=T)
+    All.NCI.ss.h <- sum(ss.diff * (diam2/dist2), na.rm=T)
+    All.NCI.ss.a <- sum(abs(ss.diff) * (diam2/dist2), na.rm=T)
+    All.NCI.hmax.h <- sum(hmax.diff * (diam2/dist2), na.rm=T)
+    All.NCI.hmax.a <- sum(abs(hmax.diff) * (diam2/dist2), na.rm=T)
     
-    wsg.diff.bigger <- foc.tree[,'WSG'] - neighzbigger[,'WSG']
-    lma.diff.bigger <- foc.tree[,'log.LMALEAF_AVI'] - neighzbigger[,'log.LMALEAF_AVI']
-    ldmc.diff.bigger <- foc.tree[,'log.LDMC_AVI'] - neighzbigger[,'log.LDMC_AVI']
-    ss.diff.bigger <- foc.tree[,'log.SEED_DRY'] - neighzbigger[,'log.SEED_DRY']
-    hmax.diff.bigger <- foc.tree[,'HEIGHT_AVG'] - neighzbigger[,'HEIGHT_AVG']
+    wsg.diff.big <- foc.tree[,'WSG'] - bigneighz[,'WSG']
+    lma.diff.big <- foc.tree[,'log.LMALEAF_AVI'] - bigneighz[,'log.LMALEAF_AVI']
+    ldmc.diff.big <- foc.tree[,'log.LDMC_AVI'] - bigneighz[,'log.LDMC_AVI']
+    ss.diff.big <- foc.tree[,'log.SEED_DRY'] - bigneighz[,'log.SEED_DRY']
+    hmax.diff.big <- foc.tree[,'HEIGHT_AVG'] - bigneighz[,'HEIGHT_AVG']
     
-    Big.NCI.wsg.h <- sum(wsg.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.wsg.a <- sum(abs(wsg.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.lma.h <- sum(lma.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.lma.a <- sum(abs(lma.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.ldmc.h <- sum(ldmc.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.ldmc.a <- sum(abs(ldmc.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.ss.h <- sum(ss.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.ss.a <- sum(abs(ss.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.hmax.h <- sum(hmax.diff.bigger * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-    Big.NCI.hmax.a <- sum(abs(hmax.diff.bigger) * na.omit(neighzbigger$dbh^2/((neighzbigger$x - foc.tree$x)^2 + (neighzbigger$y - foc.tree$y)^2)), na.rm=T)
-
+    Big.NCI.wsg.h <- sum(wsg.diff.big * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.wsg.a <- sum(abs(wsg.diff.big) * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.lma.h <- sum(lma.diff.big * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.lma.a <- sum(abs(lma.diff.big) * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.ldmc.h <- sum(ldmc.diff.big * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.ldmc.a <- sum(abs(ldmc.diff.big) * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.ss.h <- sum(ss.diff.big * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.ss.a <- sum(abs(ss.diff.big) * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.hmax.h <- sum(hmax.diff.big * (bigdiam2/bigdist2), na.rm=T)
+    Big.NCI.hmax.a <- sum(abs(hmax.diff.big) * (bigdiam2/bigdist2), na.rm=T)
+    
     All.NCI.wsg.a <- ifelse(is.na(foc.tree[,'WSG']), NA, All.NCI.wsg.a)
     All.NCI.wsg.h <- ifelse(is.na(foc.tree[,'WSG']), NA, All.NCI.wsg.h)
     Big.NCI.wsg.a <- ifelse(is.na(foc.tree[,'WSG']), NA, Big.NCI.wsg.a)
