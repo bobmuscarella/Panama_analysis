@@ -169,7 +169,7 @@ for (trt in 1:length(traits)) {
       inits <- function (){
         list(
           beta.t.1 = rnorm(3),
-          beta.t.1 = rnorm(3),
+          beta.t.2 = rnorm(3),
           mu.beta.1 = rnorm(3),    
           mu.beta.2 = rnorm(3),    
           mu.beta.3 = rnorm(3),    
