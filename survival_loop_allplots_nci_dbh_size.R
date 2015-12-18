@@ -62,18 +62,20 @@ for (trt in 1:length(traits)) {
     d$log.nci.z[d$size.class %in% i] <- z.score(d$log.nci[d$size.class %in% i])
   }
   
+  ### SET DIAM.z OF SINGLETON SPECIES (size classes) TO ZERO
+  d$log.dbh.z[is.na(d$log.dbh.z)] <- 0
+  
     dp <- d
       
     for(size in 1:2) {
       dps <- dp[dp$size.class %in% size,]
       
-      dps <- dps[,c('spcode','plot','size.class','census','survival','days','log.dbh.z','id','log.nci.z',
-                    trait)]
+      dps <- dps[,c('spcode','plot','size.class','census','survival','days','log.dbh.z','id','log.nci.z', trait)]
       
+      dps$speciesxplot <- as.factor(paste(dps$plot, dps$spcode, sep='.'))
+
       # Drop factors for correct indexing
       dps <- droplevels(dps)
-      
-      dps$speciesxplot <- paste(dps$plot, dps$spcode, sep='.')
       
       # Create an individual ID
       dps$indiv <- as.numeric(as.factor(dps$id))
@@ -96,7 +98,7 @@ for (trt in 1:length(traits)) {
         dbh = as.numeric(dps$log.dbh.z),
         trait = z.score(tapply(dps[,trait], dps$speciesxplot, mean)),
         indiv = dps$indiv,
-        species = as.numeric(as.factor(dps$speciesxplot)),
+        species = as.numeric((dps$speciesxplot)),
         nplot = length(levels(as.factor(dps$plot))),
         plot = as.numeric(substring(names(tapply(dps[,trait], dps$speciesxplot, mean)),1,1))
       )
@@ -112,10 +114,11 @@ for (trt in 1:length(traits)) {
       
       sink("survival_3level_NCI.bug")
       
+      
       cat(" model {
           
           for( i in 1:ntree ) {
-
+          
           alive[i] ~ dbern(t[i])
           
           t[i] <- pow(z[i], days[i]/365.25)
@@ -124,7 +127,7 @@ for (trt in 1:length(traits)) {
           + beta.2[species[i]] * nci[i]
           + beta.3[species[i]] * dbh[i]
           + indiv.effect[indiv[i]] * indicator[i]
-          + census.effect[census[i]]
+#          + census.effect[census[i]]
           }
           
           for( j in 1:nspecies ) {
@@ -133,49 +136,48 @@ for (trt in 1:length(traits)) {
           beta.3[j] ~ dnorm(mu.beta.3[plot[j]], tau[3])
           }
           
-          for( m in 1:nplot ) {
-          mu.beta.1[m] ~ dnorm(0, 1E-3)
-          mu.beta.2[m] ~ dnorm(0, 1E-3)
-          mu.beta.3[m] ~ dnorm(0, 1E-3)
+          for( p in 1:nplot ) {
+          mu.beta.1[p] ~ dnorm(0, 1E-4)
+          mu.beta.2[p] ~ dnorm(0, 1E-4)
+          mu.beta.3[p] ~ dnorm(0, 1E-4)
+          beta.t.1[p] ~ dnorm(0, 1E-4)
+          beta.t.2[p] ~ dnorm(0, 1E-4)
           }
 
-          for( p in 1:nplot ) {
-          beta.t.1[p] ~ dnorm(0, 1E-3)
-          beta.t.2[p] ~ dnorm(0, 1E-3)
-          }
-          
-          for( c.a in 1:ncensus ) {
-          census.effect[c.a] ~ dnorm(0, tau[4])
-          }
+#          for( c.a in 1:ncensus ) {
+#          census.effect[c.a] ~ dnorm(0, 1E-4)
+#          }
           
           for( i.a in 1:nindiv ) {
-          indiv.effect[i.a] ~ dnorm(0, tau[5])
+          indiv.effect[i.a] ~ dnorm(0, tau[4])
           }
           
-          for( t in 1:5 ) {
+          for( t in 1:3 ) {
           tau[t] ~ dgamma(1E-3, 1E-3)
           }
           
           sigma <- 1 / sqrt(tau)
           
     }"
-    , fill=TRUE)
+, fill=TRUE)
       sink()
-
+      
+      
       ################################################
       ### Set initial values, monitors, iterations and run model ###
       ################################################
-
+      
+      # Set initial values
       inits <- function (){
         list(
           beta.t.1 = rnorm(3),
           beta.t.2 = rnorm(3),
-          mu.beta.1 = rnorm(3),    
-          mu.beta.2 = rnorm(3),    
-          mu.beta.3 = rnorm(3),    
-          tau = rgamma(5, 1E3, 1E3))
+          mu.beta.1 = rnorm(3),
+          mu.beta.2 = rnorm(3),
+          mu.beta.3 = rnorm(3),
+          tau = rgamma(3, 1E3, 1E3))
       }
-      
+
       setwd("K:/Bob/Panama/MODELS") 
 
       # Set monitors
@@ -183,20 +185,20 @@ for (trt in 1:length(traits)) {
       
       # Run model
       adapt <- 2000
-      iter <- 25000
-      burn <- 22000
+      iter <- 5000
+      burn <- 3000
       thin <- 5
       chains <- 3
       
       modfile <- "survival_3level_NCI.bug"
       
-      print(paste("Now working on:", trait, ifelse(size==1,'sm','lg'),sep="."))
+      print(paste("Now working on:", trait, ifelse(size==1,' sm',' lg'),sep=""))
       
       mod <- jagsUI::jags(data, inits, params, modfile, 
                           n.chains=chains, n.adapt=adapt, n.iter=iter, 
                           n.burnin=burn, n.thin=thin, parallel=T)
       
-      for(reps in 1:10){
+      for(reps in 1:20){
         if(max(unlist(mod$Rhat)) > 1.1){
           print(paste('Doing update #', reps))
           mod <- update(mod, n.iter=5000)
