@@ -113,8 +113,7 @@ for (trt in 1:length(traits)) {
       setwd("K:/Bob/Panama/MODELS") 
       
       sink("survival_3level_NCI.bug")
-      
-      
+            
       cat(" model {
           
           for( i in 1:ntree ) {
@@ -127,7 +126,7 @@ for (trt in 1:length(traits)) {
           + beta.2[species[i]] * nci[i]
           + beta.3[species[i]] * dbh[i]
           + indiv.effect[indiv[i]] * indicator[i]
-#          + census.effect[census[i]]
+          + census.effect[census[i]]
           }
           
           for( j in 1:nspecies ) {
@@ -144,15 +143,15 @@ for (trt in 1:length(traits)) {
           beta.t.2[p] ~ dnorm(0, 1E-4)
           }
 
-#          for( c.a in 1:ncensus ) {
-#          census.effect[c.a] ~ dnorm(0, 1E-4)
-#          }
+          for( c.a in 1:ncensus ) {
+          census.effect[c.a] ~ dnorm(0, 1E-4)
+          }
           
           for( i.a in 1:nindiv ) {
           indiv.effect[i.a] ~ dnorm(0, tau[4])
           }
           
-          for( t in 1:3 ) {
+          for( t in 1:4 ) {
           tau[t] ~ dgamma(1E-3, 1E-3)
           }
           
@@ -175,7 +174,7 @@ for (trt in 1:length(traits)) {
           mu.beta.1 = rnorm(3),
           mu.beta.2 = rnorm(3),
           mu.beta.3 = rnorm(3),
-          tau = rgamma(3, 1E3, 1E3))
+          tau = rgamma(4, 1E3, 1E3))
       }
 
       setwd("K:/Bob/Panama/MODELS") 
