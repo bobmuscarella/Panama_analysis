@@ -68,8 +68,8 @@ for(p in 1:3){
 
 dp <- d[d$plot==p,]
 
-for(size in 1:2) {
-#for(size in 2) {
+#for(size in 1:2) {
+for(size in 1) {
 
 dps <- dp[dp$size.class %in% size,]
 

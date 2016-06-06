@@ -68,7 +68,9 @@ for (trt in 1:length(traits)) {
   
     dp <- d
       
-    for(size in 1:2) {
+    x <- ifelse(trt==1, 1, 2)
+    s <- list(2,c(1:2))[[x]]
+      for(size in s) {
       dps <- dp[dp$size.class %in% size,]
       
       dps <- dps[,c('spcode','plot','size.class','census','growth.z','log.dbh.z','id','log.nci.z', 
@@ -187,15 +189,15 @@ for (trt in 1:length(traits)) {
       params <- c('beta.t.1','beta.t.2','mu.beta.1','mu.beta.2','mu.beta.3','sigma')
       
       # Run model
-      adapt <- 2000
-      iter <- 25000
-      burn <- 22000
-      thin <- 5
+      adapt <- 1000
+      iter <- 5000
+      burn <- 4000
+      thin <- 4
       chains <- 3
       
       modfile <- "growth_3level_NCI.bug"
       
-      print(paste("Now working on:", trait, ifelse(size==1,'sm','lg'),sep="."))
+      print(paste("Now working on: ", trait, ifelse(size==1,' sm',' lg'),sep=""))
       
       mod <- jagsUI::jags(data, inits, params, modfile, 
                           n.chains=chains, n.adapt=adapt, n.iter=iter, 
@@ -208,7 +210,7 @@ for (trt in 1:length(traits)) {
         }
       }
       
-      setwd("K:/Bob/Panama/RESULTS/_12.17.15/growth/3level/nci_dbh_sizes") 
+      setwd("K:/Bob/Panama/RESULTS/_12.17.15/growth/3level") 
       
       file <- paste('allplots', trait, ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
       saveRDS(mod, file=file)
