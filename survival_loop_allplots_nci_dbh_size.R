@@ -113,8 +113,7 @@ for (trt in 1:length(traits)) {
       setwd("K:/Bob/Panama/MODELS") 
       
       sink("survival_3level_NCI.bug")
-      
-      
+            
       cat(" model {
           
           for( i in 1:ntree ) {
@@ -144,10 +143,6 @@ for (trt in 1:length(traits)) {
           beta.t.2[p] ~ dnorm(0, 1E-4)
           }
 
-          for( c.a in 1:ncensus ) {
-          census.effect[c.a] ~ dnorm(0, tau[4])
-          }
-          
           for( i.a in 1:nindiv ) {
           indiv.effect[i.a] ~ dnorm(0, tau[5])
           }
