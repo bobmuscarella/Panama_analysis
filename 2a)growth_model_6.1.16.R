@@ -85,8 +85,8 @@ for (i in 1:2){
 }
 
 
-size <- 1
-#    for(size in 1:2) {
+#size <- 1
+    for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
 dps <- dps[,c('spplot','plot','census','growth.z',
@@ -153,8 +153,10 @@ if(p!=2){
 }
 
 ##############################
-#### Write the model file ####
+#### Write the model file? ####
 ##############################
+write.mods <- F
+if(write.mods==T){
 setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
 
 sink("growth_6.2.16_bci.bug")
@@ -273,7 +275,7 @@ cat(" model {
     }"
     , fill=TRUE)
 sink()
-
+}
 
 ################################################
 ### Set initial values, monitors, iterations and run model ###
@@ -300,8 +302,8 @@ if(p!=2){  inits <- function (){
 params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'pred.sigma','t.pred','pred.tmeans')
 
 adapt <- 2000
-iter <- 15000
-burn <- 10000
+iter <- 50000
+burn <- 40000
 thin <- 20
 chains <- 3
 
@@ -311,14 +313,14 @@ warning(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','S
 
 mod <- jagsUI::jags(data, inits, params, modfile, n.chains=chains, n.adapt=adapt, 
                     n.iter=iter, n.burnin=burn, n.thin=thin, parallel=T)
-
-mod
-plot(mod)
-plot.params.2(mod)
-plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
-plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
-plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
-
+# 
+# mod
+# plot(mod)
+# plot.params.2(mod)
+# plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
+# plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
+# plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
+# 
 
 # par(mfrow=c(2,2))
 # 
@@ -340,11 +342,13 @@ for(reps in 1:10){
 
 setwd("K:/Bob/Panama/RESULTS/_6.6.16/growth") 
 
-file <- paste(trait, ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
-saveRDS(mod, file=file)
+modfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
+saveRDS(mod, file=modfile)
+datfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Input.Rdata',sep=".")
+saveRDS(mod, file=datfile)
 
-}
-}
+#}
+#}
 }
 
 
