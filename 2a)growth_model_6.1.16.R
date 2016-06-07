@@ -138,8 +138,6 @@ data = list (
   species = as.numeric(as.factor(dps$spplot)),
   growth = as.numeric(dps$growth.z),
   allnci = as.numeric(dps[,'log.all.nci.z']),
-  #         ncensus = length(unique(paste(dps$census, dps$plot, sep=''))),
-  #         census = as.numeric(dps$census),
   dbh = as.numeric(dps$log.dbh.z),
   tmeans.z = tmeans.z,
   ttaus.z = ttaus.z,
