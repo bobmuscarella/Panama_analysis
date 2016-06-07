@@ -85,8 +85,8 @@ for (i in 1:2){
 }
 
 
-#size <- 1
-    for(size in 1:2) {
+size <- 1
+#    for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
 dps <- dps[,c('spplot','plot','census','growth.z',
@@ -347,7 +347,7 @@ saveRDS(mod, file=datfile)
 
 #}
 #}
-}
+#}
 
 
 
@@ -385,4 +385,3 @@ plot.params.2 <- function(mod){
   axis(2); box()
 }
 
-plot.params.2(mod)
