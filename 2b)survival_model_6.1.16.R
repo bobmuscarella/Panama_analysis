@@ -2,7 +2,7 @@
 ###  SURVIVAL ANALYSIS
 ###  SINGLE-PLOT
 ###  ONLY NCI, DBH BY SIZE CLASS
-###  Results in "K:/Bob/Panama/RESULTS/_6.6.16/growth/nci_dbh_sizes"
+###  Results in "K:/Bob/Panama/RESULTS/_6.6.16/survival/"
 #######################################
 library(jagsUI)
 library(rjags)
@@ -15,40 +15,29 @@ pc <- T
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
 if(pc==T){
-  setwd("K:/Bob/Panama/GIT/Panama_analysis/DATA") 
+  setwd("K:/Bob/Panama/DATA") 
   load("Panama_AnalysisData_6.7.16.RDA") # tdata
   load("panama_ITV_traits_6.7.16.RDA") # traits
 }
 
 ###########################
 # PREP FOR TESTING:
-setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-load("Panama_AnalysisData_6.7.16.RDA") # tdata
-load("panama_ITV_traits_6.7.16.RDA") # traits
+if(pc==F){
+  setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+  load("Panama_AnalysisData_6.7.16.RDA") # tdata
+  load("panama_ITV_traits_6.7.16.RDA") # traits
+}
 
-r <- 15
-tdata$Not.Edge.20[tdata$plot==1] <- point.in.polygon(tdata$x[tdata$plot==1], tdata$y[tdata$plot==1], 
-                                                     c(r,(200-r),(200-r),(100-r),(100-r),r), 
-                                                     c(r,r,(100-r),(100-r),(300-r),(300-r)))
-tdata$Not.Edge.20[tdata$plot==1] <- ifelse(tdata$Not.Edge.20[tdata$plot==1] > 0, 1, 0)
-tdata$Not.Edge.20[tdata$plot==2] <- ifelse(tdata$x[tdata$plot==2] > r & tdata$x[tdata$plot==2] < (1000-r) 
-                                           & tdata$y[tdata$plot==2] > r & tdata$y[tdata$plot==2] < (500-r), 1, 0)
-tdata$Not.Edge.20[tdata$plot==3] <- point.in.polygon(tdata$x[tdata$plot==3], tdata$y[tdata$plot==3], 
-                                                     c(r,(140-r),(140-r),(240-r),(240-r),(140+r),(140+r),r), 
-                                                     c(r,r,(40+r),(40+r),(340-r),(340-r),(140-r),(140-r)))
-tdata$Not.Edge.20[tdata$plot==3] <- ifelse(tdata$Not.Edge.20[tdata$plot==3] > 0, 1, 0)
 
-tdata <- tdata[tdata$Not.Edge.20==1,]
+tdata <- tdata[!is.na(tdata$All.NCI),]
+tdata <- tdata[tdata$Not.Edge==1,]
 tdata <- droplevels(tdata)
-
 tdata$log.all.nci <- log(tdata$All.NCI + 1)
 tdata$log.con.nci <- log(tdata$Con.NCI + 1)
 tdata$log.dbh <- log(tdata$dbh)
 
 traits$log.LMA.mean <- log(traits$LMA.mean)
 ###########################
-
-
 
 ###########################
 #### Prepare data for input  ####
@@ -77,8 +66,8 @@ for (i in 1:2){
   dp$log.all.nci.z[dp$size.class %in% i] <- as.vector(scale(dp$log.all.nci[dp$size.class %in% i]))
 }
 
-size <- 2
-#    for(size in 1:2) {
+#size <- 2
+    for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
 dps <- dps[,c('spplot','plot','census','survival','log.dbh.z','id','log.all.nci.z','days')]
@@ -145,8 +134,10 @@ if(p!=2){
 ##############################
 #### Write the model file ####
 ##############################
-setwd("K:/Bob/Panama/MODELS") 
-
+write.mods <- F
+if(write.mods==T){
+  setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
+  
 sink("survival_6.2.16_bci.bug")
 cat(" model {
     
@@ -267,7 +258,7 @@ cat(" model {
     }"
     , fill=TRUE)
 sink()
-
+}
 
 ################################################
 ### Set initial values, monitors, iterations and run model ###
@@ -293,25 +284,26 @@ if(p!=2){  inits <- function (){
 # Set monitors & run model
 params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'pred.sigma','t.pred','pred.tmeans')
 
-adapt <- 1000
-iter <- 5000
-burn <- 2500
-thin <- 5
+adapt <- 5000
+iter <- 50000
+burn <- 40000
+thin <- 20
 chains <- 3
 
+setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
 modfile <- ifelse(p!=2, "survival_6.2.16_coc.she.bug", "survival_6.2.16_bci.bug")
-print(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'<10cm','>10cm'),sep=" ")))
+warning(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'< 10cm','> 10cm'))), immediate.=T)
 
 mod <- jagsUI::jags(data, inits, params, modfile, n.chains=chains, n.adapt=adapt, 
-                    n.iter=iter, n.burnin=burn, n.thin=thin, parallel=F)
+                    n.iter=iter, n.burnin=burn, n.thin=thin, parallel=T)
 
-mod
-plot(mod)
-plot.params.2(mod)
-plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
-plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
-plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
-
+# mod
+# plot(mod)
+# plot.params.2(mod)
+# plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
+# plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
+# plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
+# 
 
 # par(mfrow=c(2,2))
 # 
@@ -324,21 +316,22 @@ plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
 # abline(0,1)
 
 
-for(reps in 1:10){
+for(reps in 1:2){
   if(max(unlist(mod$Rhat)) > 1.1){
-    print(paste('Doing update #', reps))
+    warning(paste('Doing update #', reps),immediate.=T)
     mod <- update(mod, n.iter=10000)
   }
 }
 
-setwd("K:/Bob/Panama/RESULTS/_12.17.15/growth/nci_dbh_sizes") 
+setwd('K:/Bob/Panama/RESULTS/_6.6.16/survival/')
+modfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
+saveRDS(mod, file=modfile)
+datfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Input.Rdata',sep=".")
+saveRDS(data, file=datfile)
 
-file <- paste(trait, ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
-saveRDS(mod, file=file)
-
 }
-}
-}
+#}
+#}
 
 
 
@@ -375,6 +368,3 @@ plot.params.2 <- function(mod){
   axis(1, labels=rownames(x), at=1:nrow(x), las=2)
   axis(2); box()
 }
-
-plot.params.2(mod)
-

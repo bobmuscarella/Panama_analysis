@@ -299,7 +299,7 @@ if(p!=2){  inits <- function (){
 # Set monitors & run model
 params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'pred.sigma','t.pred','pred.tmeans')
 
-adapt <- 2000
+adapt <- 5000
 iter <- 50000
 burn <- 40000
 thin <- 20
