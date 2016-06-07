@@ -15,14 +15,14 @@ pc <- F
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
 setwd("K:/Bob/Panama/GIT/Panama_analysis/DATA") 
-load("Panama_AnalysisData_6.1.16.RDA")
+load("Panama_AnalysisData_6.7.16.RDA")
 
 
 ###########################
 # PREP FOR TESTING:
 setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
-load("Panama_AnalysisData_6.2.16.RDA") # tdata
-load("panama_ITV_traits_6.2.16.RDA") # traits
+load("Panama_AnalysisData_6.7.16.RDA") # tdata
+load("panama_ITV_traits_6.7.16.RDA") # traits
 
 r <- 15
 tdata$Not.Edge.20[tdata$plot==1] <- point.in.polygon(tdata$x[tdata$plot==1], tdata$y[tdata$plot==1], 
@@ -72,12 +72,12 @@ d <- droplevels(d)
 ##################################################
 #### Start loop to model each plot separately ####
 ##################################################
-p <- 3
+p <- 2
 #for(p in 1:3){
 
 dp <- d[d$plot==p,]
 
-
+#dp <- dp[sample(1:nrow(dp),2000),]
 ######################################################################################
 #### Standardize and Center coefficients (within plots, within size classes 10cm) ####
 ######################################################################################
@@ -94,7 +94,7 @@ for (i in 1:2){
 }
 
 
-size <- 2
+size <- 1
 #    for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
@@ -156,8 +156,10 @@ data = list (
 )
 
 ### Add an indicator to set individual effect of non-rep indiv to zero
-repindiv <- names(table(data$indiv))[table(data$indiv) > 1]
-data$indicator <- as.numeric(data$indiv %in% repindiv)
+if(p!=2){
+  repindiv <- names(table(data$indiv))[table(data$indiv) > 1]
+  data$indicator <- as.numeric(data$indiv %in% repindiv)
+}
 
 ##############################
 #### Write the model file ####
@@ -182,25 +184,16 @@ cat(" model {
     beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[3])
     beta.3[j] ~ dnorm(mu.beta[3], tau[4])
     
-    ### TURN OFF ITV
-    #           wd.pred[j] <- wd.mean.z[j]
-    #           lma.pred[j] <- lma.mean.z[j]
-    
-    ### TURN ON ITV (v1) ###
-    #              for (N in 1:2){ t.pred[j,N] ~ dnorm(tmeans.z[j,N], ttaus.z[j,N]) }
-    
-    ### TURN ON ITV (v2) ###
-    #             t.pred[j,1:2] ~ dmnorm(tmeans.z[j,], omega[,])
-    
     ### TURN ON ITV (v3) ###
     t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
-    for (N in 1:2){
-    pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-    pred.tau[j,N] ~ dgamma(sh[j,2], ra[j,N])
-    ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
-    sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
+          for (N in 1:2){
+          pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
+          pred.tau[j,N] ~ dgamma(sh[j,2], ra[j,N])
+          ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
+          sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
+          }
     }
-    
+
     ### PRIORS ####
     for( m in 1:3 ) {
     mu.beta[m] ~ dnorm(0, 1E-3)
@@ -211,8 +204,8 @@ cat(" model {
     beta.lma[b] ~ dnorm(0, 1E-3)
     sd[b] ~ dunif(0, 100)
     }
-    
-    for( t in 1:4 ) {
+
+    for( t in 1:5 ) {
     tau[t] ~ dgamma(1E-3, 1E-3)
     }
     
@@ -295,65 +288,70 @@ sink()
 ### Set initial values, monitors, iterations and run model ###
 ################################################
 
-ntau <- if(else(p!=2, ntau, 5, 4)
-           
-           inits <- function (){
-             list(
-               beta.wd = rnorm(2),
-               beta.lma = rnorm(2),
-               mu.beta = rnorm(3),
-               sd = runif(2, 0, 100),
-               tau = rgamma(5, 1E3, 1E3))
-           }
-           
-           
-           # Set monitors & run model
-           params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'pred.sigma','t.pred','pred.tmeans')
-           
-           adapt <- 2000
-           iter <- 15000
-           burn <- 10000
-           thin <- 20
-           chains <- 3
-           
-           modfile <- ifelse(p!=2, "growth_6.2.16_coc.she.bug", "growth_6.2.16_bci.bug")
-           print(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'<10cm','>10cm'),sep=" ")))
-           
-           mod <- jagsUI::jags(data, inits, params, modfile, n.chains=chains, n.adapt=adapt, 
-                               n.iter=iter, n.burnin=burn, n.thin=thin, parallel=F)
-           
-           mod
-           plot(mod)
-           plot.params.2(mod)
-           plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
-           plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
-           plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
-           
-           
-           # par(mfrow=c(2,2))
-           # 
-           # plot(data$wd.mean.z, mod$q50$wd.pred, ylim=c(min(mod$q2.5$wd.pred), max(mod$q97.5$wd.pred)))
-           # segments(data$wd.mean.z, mod$q2.5$wd.pred, data$wd.mean.z, mod$q97.5$wd.pred, col=rgb(0,0,0,.5))
-           # abline(0,1)
-           # 
-           # plot(data$lma.mean.z, mod$q50$lma.pred, ylim=c(min(mod$q2.5$lma.pred), max(mod$q97.5$lma.pred)))
-           # segments(data$lma.mean.z, mod$q2.5$lma.pred, data$lma.mean.z, mod$q97.5$lma.pred, col=rgb(0,0,0,.5))
-           # abline(0,1)
-           
-           
-           for(reps in 1:10){
-             if(max(unlist(mod$Rhat)) > 1.1){
-               print(paste('Doing update #', reps))
-               mod <- update(mod, n.iter=10000)
-             }
-           }
-           
-           setwd("K:/Bob/Panama/RESULTS/_12.17.15/growth/nci_dbh_sizes") 
-           
-           file <- paste(trait, ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
-           saveRDS(mod, file=file)
-           
-           }
+if(p==2){  inits <- function (){
+    list(
+      beta.wd = rnorm(2),
+      beta.lma = rnorm(2),
+      mu.beta = rnorm(3),
+      sd = runif(2, 0, 100),
+      tau = rgamma(4, 1E3, 1E3))
+  }}
+if(p!=2){  inits <- function (){
+  list(
+    beta.wd = rnorm(2),
+    beta.lma = rnorm(2),
+    mu.beta = rnorm(3),
+    sd = runif(2, 0, 100),
+    tau = rgamma(5, 1E3, 1E3))
+}}
+
+# Set monitors & run model
+params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'pred.sigma','t.pred','pred.tmeans')
+
+adapt <- 2000
+iter <- 15000
+burn <- 10000
+thin <- 20
+chains <- 3
+
+modfile <- ifelse(p!=2, "growth_6.2.16_coc.she.bug", "growth_6.2.16_bci.bug")
+print(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'<10cm','>10cm'),sep=" ")))
+
+mod <- jagsUI::jags(data, inits, params, modfile, n.chains=chains, n.adapt=adapt, 
+                    n.iter=iter, n.burnin=burn, n.thin=thin, parallel=F)
+
+mod
+plot(mod)
+plot.params.2(mod)
+plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
+plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
+plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
+
+
+# par(mfrow=c(2,2))
+# 
+# plot(data$wd.mean.z, mod$q50$wd.pred, ylim=c(min(mod$q2.5$wd.pred), max(mod$q97.5$wd.pred)))
+# segments(data$wd.mean.z, mod$q2.5$wd.pred, data$wd.mean.z, mod$q97.5$wd.pred, col=rgb(0,0,0,.5))
+# abline(0,1)
+# 
+# plot(data$lma.mean.z, mod$q50$lma.pred, ylim=c(min(mod$q2.5$lma.pred), max(mod$q97.5$lma.pred)))
+# segments(data$lma.mean.z, mod$q2.5$lma.pred, data$lma.mean.z, mod$q97.5$lma.pred, col=rgb(0,0,0,.5))
+# abline(0,1)
+
+
+for(reps in 1:10){
+  if(max(unlist(mod$Rhat)) > 1.1){
+    print(paste('Doing update #', reps))
+    mod <- update(mod, n.iter=10000)
+  }
+}
+
+setwd("K:/Bob/Panama/RESULTS/_12.17.15/growth/nci_dbh_sizes") 
+
+file <- paste(trait, ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
+saveRDS(mod, file=file)
+
+}
 }
 }
 
@@ -394,4 +392,3 @@ plot.params.2 <- function(mod){
 }
 
 plot.params.2(mod)
-

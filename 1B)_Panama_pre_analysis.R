@@ -81,31 +81,32 @@ bci <- droplevels(bci)
 
 bci <- bci[,c('Tag','Latin','spcode','PX','PY','Not.edge','plot', 'census', 'dbhStart', 'growth','log.growth','survival','days')]
 names(bci) <- c('tag','latin','spcode','x','y','Not.Edge','plot','census','dbh','growth','log.growth','survival','days')
-bci$id <- rownames(bci)
+bci$id <- as.numeric(rownames(bci))
 
 bci <- bci[!is.na(bci$survival),]
 bci <- bci[!is.na(bci$x),]
 bci <- bci[!is.na(bci$y),]
 bci$tag <- NULL
-bci$nci <- NA
 
 # save(bci, file='bci/bci_preNCI.RDA')
 # save(bci, file='bci/bci_preNCI_10.23.15.RDA')
 # save(bci, file='bci/bci_preNCI_12.9.15.RDA')
 save(bci, file='bci/bci_preNCI_6.1.16.RDA')
-load(file='bci/bci_preNCI_6.1.16.RDA')
-head(bci)
 
 
 ################################
 ### ADD OTHER PANAMA PLOTS ###
 ################################
+load(file='bci/bci_preNCI_6.1.16.RDA')
+head(bci)
+
 coc <- read.csv("cocoli/cocoli.csv")
 cocsp <- read.table("cocoli/cocolisp.txt", header=T)
 
 she <- read.csv("sherman/sherman.csv")
 shesp <- read.table("sherman/shermansp.txt", header=T)
 
+warning(paste('setting edge to', r, 'meters'))
 # plot(she$x, she$y, xlim=c(0,450), ylim=c(0,450), pch=16, cex=.2)
 she$Not.Edge <- point.in.polygon(she$x, she$y, c(r,(140-r),(140-r),(240-r),(240-r),(140+r),(140+r),r), 
                                  c(r,r,(40+r),(40+r),(340-r),(340-r),(140-r),(140-r)))
@@ -185,12 +186,11 @@ tmp2$tag <- NULL
 
 rownames(tmp2) <- NULL
 tdata <- tmp2
-tdata$nci <- NA
 
 tdata$latin[tdata$plot=='cocoli'] <- paste(cocsp$genus, cocsp$species)[match(tdata$spcode, cocsp$spcode)][tdata$plot=='cocoli']
 tdata$latin[tdata$plot=='sherman'] <- paste(shesp$genus, shesp$species)[match(tdata$spcode, shesp$spcode)][tdata$plot=='sherman']
 
-tdata <- tdata[,c("latin","spcode","x","y","Not.Edge","plot","census","dbh","growth","log.growth","survival","days","id","nci")]
+tdata <- tdata[,c("latin","spcode","x","y","Not.Edge","plot","census","dbh","growth","log.growth","survival","days","id")]
 
 tdata <- rbind(tdata, bci)
 
@@ -415,7 +415,7 @@ splist$mess.LMA.sd <- mess.sd[match(splist$sp, names(mess.sd))]
 splist$mess.log.LMA.sd <- mess.log.sd[match(splist$sp, names(mess.log.sd))]
 
 ### ADD LMA DATA FROM CANOPY CRANE
-crane <- read.xlsx('traits/SLA crane species.xlsx', sheetName='LFTRAITS')
+crane <- read.csv('traits/SLA crane species.csv')
 crane$plot <- ifelse(crane$SITE. == 'FTS', 3, ifelse(crane$SITE. == 'PNM', 1, NA))
 crane <- crane[crane$STRATA.=='UNDERSTORY',]
 crane$LMA <- (1/crane$SLA_LEAF)*10000
@@ -481,12 +481,12 @@ splist$bci.WD.mean[is.na(splist$bci.WD.mean)] <- wd60mean[match(splist$sp, names
 splist$bci.WD.sd[is.na(splist$bci.WD.sd)] <- wd60sd[match(splist$sp, names(wd60sd))][is.na(splist$bci.WD.sd)]
 
 ### Give BCI values across the gradient (to use if no other values are available...)
-gen.wdmean <- rep(wdmean, times=3)
-names(gen.wdmean) <- paste(rep(1:3, each=length(wdmean)), substring(names(gen.lmamean), 2, nchar(names(gen.lmamean))), sep='')
-gen.wdsd <- rep(wdsd, times=3)
-names(gen.wdsd) <- paste(rep(1:3, each=length(wdsd)), substring(names(gen.wdsd), 2, nchar(names(gen.wdsd))), sep='')
-splist$bcigen.WD.mean <- gen.wdmean[match(splist$sp, names(gen.wdmean))]
-splist$bcigen.WD.sd <- gen.wdsd[match(splist$sp, names(gen.wdsd))]
+gen.wd.mean <- rep(wdmean, times=3)
+names(gen.wd.mean) <- paste(rep(1:3, each=length(wdmean)), substring(names(gen.wd.mean), 2, nchar(names(gen.wd.mean))), sep='')
+gen.wd.sd <- rep(wdsd, times=3)
+names(gen.wd.sd) <- paste(rep(1:3, each=length(wdsd)), substring(names(gen.wd.sd), 2, nchar(names(gen.wd.sd))), sep='')
+splist$bcigen.WD.mean <- gen.wd.mean[match(splist$sp, names(gen.wd.mean))]
+splist$bcigen.WD.sd <- gen.wd.sd[match(splist$sp, names(gen.wd.sd))]
 
 ### ADD WD COLUMNS FOR TRAITS FROM OTHER LOCATIONS...
 bci <- read.csv("traits/BCITRAITS_20101220.csv")
@@ -588,9 +588,9 @@ save(tdata, file='panama_traits_preNCI_6.1.16.RDA')
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
 load('panama_traits_preNCI_6.1.16.RDA') # tdata
-load('NCI_for_panama_traits_preNCI_6.1.16.RDA') # nci
-tdata <- cbind(tdata, nci)
+load('NCI_for_panama_traits_preNCI_6.7.16.RDA') # nci
 
+tdata <- cbind(tdata, nci)
 
 # load("alldata_NCI.RDA")
 # load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
@@ -774,19 +774,18 @@ tdata <- cbind(tdata, nci)
 # tdata <- cbind(tdata, nci)
 
 # save(tdata, file="panama_NCI_Traits_12.9.15.RDA")
-save(tdata, file="panama_NCI_Traits_6.2.16.RDA")
+save(tdata, file="panama_NCI_Traits_6.7.16.RDA")
 
 traits <- splist
-save(traits, file="panama_ITV_traits_6.2.16.RDA")
+save(traits, file="panama_ITV_traits_6.7.16.RDA")
 
 
 
 ###############################
 ### CURRENT CONSIDERATIONS: ###
 ###############################
-#load("panama_NCI_Traits_12.9.15.RDA")
-load("panama_NCI_Traits_6.2.16.RDA") # tdata
-load("panama_ITV_traits_6.2.16.RDA") # traits
+load("panama_NCI_Traits_6.7.16.RDA") # tdata
+load("panama_ITV_traits_6.7.16.RDA") # traits
 
 head(tdata)
 head(traits)
@@ -859,7 +858,7 @@ z.score <- function (data, scale=T, center=T) {
 
 
 #save(tdata, file='Panama_AnalysisData_12.9.15.RDA')
-save(tdata, file='Panama_AnalysisData_6.2.16.RDA')
+save(tdata, file='Panama_AnalysisData_6.7.16.RDA')
 
 
 
