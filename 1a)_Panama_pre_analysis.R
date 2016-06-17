@@ -387,10 +387,12 @@ lma$LMA <- lma$LMA_DRY*10000
 lma$spplot <- nom$spplot[match(lma$SP., nom$sp6)]
 lma.mean <- tapply(lma$LMA, lma$spplot, mean, na.rm=T)
 lma.sd <- tapply(lma$LMA, lma$spplot, sd, na.rm=T)
+lma.n <- tapply(lma$LMA, lma$spplot, length)
 log.lma.sd <- tapply(log(lma$LMA), lma$spplot, sd, na.rm=T)
 splist$bci.LMA.mean <- lma.mean[match(splist$sp, names(lma.mean))]
 splist$bci.LMA.sd <- lma.sd[match(splist$sp, names(lma.sd))]
 splist$bci.log.LMA.sd <- log.lma.sd[match(splist$sp, names(log.lma.sd))]
+splist$bci.n.LMA <- lma.n[match(splist$sp, names(lma.n))]
 
 ### Give BCI values across the gradient (to use if no other values are available...)
 gen.lma.mean <- rep(lma.mean, times=3)
@@ -409,10 +411,12 @@ mess$plot <- ifelse(mess$Site == 'MET', 1, ifelse(mess$Site == 'BCI', 2, 3))
 mess$spplot <- paste(mess$plot, mess$Species, sep='.')
 mess.mean <- tapply(mess$LMA[mess$Strata==0], mess$spplot[mess$Strata==0], mean, na.rm=T)
 mess.sd <- tapply(mess$LMA[mess$Strata==0], mess$spplot[mess$Strata==0], sd, na.rm=T)
+mess.n <- tapply(mess$LMA[mess$Strata==0], mess$spplot[mess$Strata==0], length)
 mess.log.sd <- tapply(log(mess$LMA)[mess$Strata==0], mess$spplot[mess$Strata==0], sd, na.rm=T)
 splist$mess.LMA.mean <- mess.mean[match(splist$sp, names(mess.mean))]
 splist$mess.LMA.sd <- mess.sd[match(splist$sp, names(mess.sd))]
 splist$mess.log.LMA.sd <- mess.log.sd[match(splist$sp, names(mess.log.sd))]
+splist$mess.n.LMA <- mess.n[match(splist$sp, names(mess.n))]
 
 ### ADD LMA DATA FROM CANOPY CRANE
 crane <- read.csv('traits/SLA crane species.csv')
@@ -473,12 +477,14 @@ wd$spplot <- wdnom$spplot[match(wd$SP, wdnom$sp6)]
 wd <- wd[!is.na(wd$spplot),]
 wdmean <- tapply(wd$SG100C, wd$spplot, mean, na.rm=T)
 wdsd <- tapply(wd$SG100C, wd$spplot, sd, na.rm=T)
+wdn <- tapply(wd$SG100C, wd$spplot, length)
 splist$bci.WD.mean <- wdmean[match(splist$sp, names(wdmean))]
 splist$bci.WD.sd <- wdsd[match(splist$sp, names(wdsd))]
 wd60mean <- tapply(wd$SG60C, wd$spplot, mean, na.rm=T)
 wd60sd <- tapply(wd$SG60C, wd$spplot, sd, na.rm=T)
 splist$bci.WD.mean[is.na(splist$bci.WD.mean)] <- wd60mean[match(splist$sp, names(wd60mean))][is.na(splist$bci.WD.mean)]
 splist$bci.WD.sd[is.na(splist$bci.WD.sd)] <- wd60sd[match(splist$sp, names(wd60sd))][is.na(splist$bci.WD.sd)]
+splist$bci.WD.n <- wdn[match(splist$sp, names(wdn))]
 
 ### Give BCI values across the gradient (to use if no other values are available...)
 gen.wd.mean <- rep(wdmean, times=3)
@@ -573,6 +579,17 @@ tdata$log.lma <- log(splist$LMA.mean)[match(tdata$spplot, splist$sp)]
 tdata$wd.source <- splist$WD.source[match(tdata$spplot, splist$sp)]
 tdata$lma.source <- splist$LMA.source[match(tdata$spplot, splist$sp)]
 
+range(c(splist$mess.n.LMA, splist$bci.n.LMA), na.rm=T)
+  
+  
+### HOW MANY INDIVIDUALS ARE COVERED IN TOTAL?
+sum(!is.na(tdata$wd))/nrow(tdata)
+sum(!is.na(tdata$lma))/nrow(tdata)
+
+### HOW MANY INDIVIDUALS ARE COVERED WITH BCI DATA?
+sum((tdata$latin) %in% splist$latin[!is.na(splist$bcigen.WD.mean)] ) / nrow(tdata)
+sum((tdata$latin) %in% splist$latin[!is.na(splist$bcigen.LMA.mean) | !is.na(splist$mess.LMA.mean)] ) / nrow(tdata)
+
 ### HOW MANY INDIVIDUALS ARE COVERED?
 table(is.na(tdata$wd), tdata$plot)[1,]/table(tdata$plot)
 table(is.na(tdata$lma), tdata$plot)[1,]/table(tdata$plot)
@@ -581,16 +598,37 @@ table(is.na(tdata$lma), tdata$plot)[1,]/table(tdata$plot)
 table(tdata$plot, tdata$wd.source)
 table(tdata$plot, tdata$lma.source)
 
+### HOW MANY SPECIES IN TOTAL ARE COVERED IN THE WOOD DENSITY DATA? 
+length(unique(tdata$latin[!is.na(tdata$wd)])) / length(unique(tdata$latin))
+
+
+length(unique(tdata$latin[!is.na(tdata$lma)])) / length(unique(tdata$latin))
+
+### WHAT PERCENTAGE OF SPECIES ARE INCLUDED IN BCI OR MESS DATA?
+length(unique(splist$latin[!is.na(splist$bcigen.WD.mean)])) / length(unique(splist$latin))
+length(unique(splist$latin[!is.na(splist$bcigen.LMA.mean) | !is.na(splist$mess.LMA.mean)])) / length(unique(splist$latin))
+
+length(unique(splist$latin[!is.na(splist$LMA.mean)])) / length(unique(splist$latin))
+
+length(unique(splist$latin[!is.na(splist$LMA.mean)]))
+length(unique(splist$latin[!is.na(splist$bcigen.LMA.mean) | !is.na(splist$mess.LMA.mean)]))
+
+length(unique(splist$latin[!is.na(splist$WD.mean)]))
+length(unique(splist$latin[!is.na(splist$bcigen.WD.mean)]))
+
+
+
 
 save(tdata, file='panama_traits_preNCI_6.1.16.RDA')
 
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
 #######################################
-load('panama_traits_preNCI_6.1.16.RDA') # tdata
-load('NCI_for_panama_traits_preNCI_6.7.16.RDA') # nci
+# load('panama_traits_preNCI_6.1.16.RDA') # tdata
+# load('NCI_for_panama_traits_preNCI_6.14.16.RDA') # nci
 
-tdata <- cbind(tdata, nci)
+### Current version from PC, post-NCI incorporation
+load('panama_NCI_Traits_6.14.16.RDA') # tdata
 
 # load("alldata_NCI.RDA")
 # load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
@@ -774,7 +812,6 @@ tdata <- cbind(tdata, nci)
 # tdata <- cbind(tdata, nci)
 
 # save(tdata, file="panama_NCI_Traits_12.9.15.RDA")
-save(tdata, file="panama_NCI_Traits_6.7.16.RDA")
 
 traits <- splist
 save(traits, file="panama_ITV_traits_6.7.16.RDA")
@@ -784,7 +821,7 @@ save(traits, file="panama_ITV_traits_6.7.16.RDA")
 ###############################
 ### CURRENT CONSIDERATIONS: ###
 ###############################
-load("panama_NCI_Traits_6.7.16.RDA") # tdata
+load("panama_NCI_Traits_6.14.16.RDA") # tdata
 load("panama_ITV_traits_6.7.16.RDA") # traits
 
 head(tdata)
@@ -794,7 +831,7 @@ head(traits)
 tdata$growth[tdata$palm==T] <- NA
 
 ### What to do about growth outliers? 
-### One option is the remove stems that grew more than a fixed amount (e.g. > 5 sd )
+### One option is the remove stems that grew more than a fixed amount (e.g. > 5 sd per plot, per size class)
 growth.include <- abs(tdata$growth) < sd(tdata$growth, na.rm=T) * 5
 growth.include <- ifelse(is.na(growth.include), FALSE, growth.include)
 tdata$Growth.Include <- growth.include
@@ -858,7 +895,7 @@ z.score <- function (data, scale=T, center=T) {
 
 
 #save(tdata, file='Panama_AnalysisData_12.9.15.RDA')
-save(tdata, file='Panama_AnalysisData_6.7.16.RDA')
+save(tdata, file='Panama_AnalysisData_6.14.16.RDA')
 
 
 
