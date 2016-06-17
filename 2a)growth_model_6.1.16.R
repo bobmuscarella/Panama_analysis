@@ -292,9 +292,9 @@ if(p!=2){  inits <- function (){
 params <- c('beta.wd','beta.lma','mu.beta','sigma')
 
 adapt <- 5000
-iter <- 25000
-burn <- 20000
-thin <- 10
+iter <- 250000
+burn <- 200000
+thin <- 50
 chains <- 3
 
 setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
