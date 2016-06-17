@@ -2,11 +2,13 @@
 ###  SURVIVAL ANALYSIS
 ###  SINGLE-PLOT
 ###  ONLY NCI, DBH BY SIZE CLASS
-###  Results in "K:/Bob/Panama/RESULTS/_6.6.16/survival/"
+###  Results in "K:/Bob/Panama/RESULTS/..."
 #######################################
 library(jagsUI)
 library(rjags)
 library(sp)
+
+load.module('glm')
 
 ### Running on PC???
 pc <- T
@@ -16,9 +18,10 @@ pc <- T
 #######################################
 if(pc==T){
   setwd("K:/Bob/Panama/DATA") 
-  load("Panama_AnalysisData_6.7.16.RDA") # tdata
+  load("Panama_AnalysisData_6.14.16.RDA") # tdata
   load("panama_ITV_traits_6.7.16.RDA") # traits
 }
+
 
 ###########################
 # PREP FOR TESTING:
@@ -28,28 +31,32 @@ if(pc==F){
   load("panama_ITV_traits_6.7.16.RDA") # traits
 }
 
-
-tdata <- tdata[!is.na(tdata$All.NCI),]
-tdata <- tdata[tdata$Not.Edge==1,]
+tdata <- tdata[!is.na(tdata$survival) & !is.na(tdata$All.NCI) & tdata$Not.Edge==1,]
 tdata <- droplevels(tdata)
-tdata$log.all.nci <- log(tdata$All.NCI + 1)
-tdata$log.con.nci <- log(tdata$Con.NCI + 1)
-tdata$log.dbh <- log(tdata$dbh)
 
+tdata$log.all.nci <- log(tdata$All.NCI + 1)
+tdata$log.dbh <- log(tdata$dbh)
 traits$log.LMA.mean <- log(traits$LMA.mean)
 ###########################
+
 
 ###########################
 #### Prepare data for input  ####
 ###########################
-tdata <- tdata[!is.na(tdata$survival),]
-d <- droplevels(tdata)
+# If you want to drop species with NA for both traits
+#d <- tdata[tdata$spplot %in% traits$sp[!is.na(traits$WD.mean)] | tdata$spplot %in% traits$sp[!is.na(traits$log.LMA.mean)],]
+
+# Or not
+d <- tdata
+
+d <- droplevels(d)
+
 
 ##################################################
 #### Start loop to model each plot separately ####
 ##################################################
 p <- 1
-#for(p in 1:3){
+#for(p in c(1,3)){
 
 dp <- d[d$plot==p,]
 
@@ -60,17 +67,16 @@ dp <- d[d$plot==p,]
 cutoff <- (100)  # Setting cutoff to neg value will put everything in 1 size class.
 dp$size.class <- ifelse(dp$dbh <= cutoff, 1, 2)
 
-### Center / scale other variables within size class
-for (i in 1:2){
-  dp$log.dbh.z[dp$size.class %in% i] <- as.vector(scale(dp$log.dbh[dp$size.class %in% i]))
-  dp$log.all.nci.z[dp$size.class %in% i] <- as.vector(scale(dp$log.all.nci[dp$size.class %in% i]))
-}
-
-#size <- 2
-    for(size in 1:2) {
+size <- 2
+#for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
-dps <- dps[,c('spplot','plot','census','survival','log.dbh.z','id','log.all.nci.z','days')]
+### Center / scale other variables within size class
+dps$log.dbh.z <- as.vector(scale(dps$log.dbh))
+dps$log.all.nci.z <- as.vector(scale(dps$log.all.nci))
+
+dps <- dps[,c('spplot','plot','census','survival','days','dbh',
+              'log.dbh.z','id','log.all.nci.z')]
 
 # Create an individual ID
 dps <- droplevels(dps)
@@ -132,133 +138,122 @@ if(p!=2){
 }
 
 ##############################
-#### Write the model file ####
+#### Write the model file? ####
 ##############################
 write.mods <- F
 if(write.mods==T){
   setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
   
-sink("survival_6.2.16_bci.bug")
-cat(" model {
-    
-    for( i in 1:ntree ) {
-    
-    alive[i] ~ dbern(t[i])
-
-    t[i] <- pow(z[i], days[i]/365.25)
-    
-    logit(z[i]) <- beta.1[species[i]]
-    + beta.2[species[i]] * allnci[i]
-    + beta.3[species[i]] * dbh[i]
-    }
-    
-    for( j in 1:nspecies ) {
-    ### MULTIVARIATE TRAITS ###
-    beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[1])
-    beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[2])
-    beta.3[j] ~ dnorm(mu.beta[3], tau[3])
-    
-    ### TURN ON ITV (v3) ###
-    t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
-        for (N in 1:2){
-            pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-            pred.tau[j,N] ~ dgamma(sh[j,2], ra[j,N])
-            ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
-            sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
-        }
-    }
-    
-    ### PRIORS ####
-    for( m in 1:3 ) {
-    mu.beta[m] ~ dnorm(0, 1E-3)
-    }
-    
-    for( b in 1:2 ) {
-    beta.wd[b] ~ dnorm(0, 1E-3)
-    beta.lma[b] ~ dnorm(0, 1E-3)
-    sd[b] ~ dunif(0, 100)
-    }
-    
-    for( t in 1:3 ) {
-    tau[t] ~ dgamma(1E-3, 1E-3)
-    }
-    
-    sigma <- 1 / sqrt(tau)
-    pred.sigma <- 1 / sqrt(pred.tau)
-    
-    }"
+  sink("survival_6.14.16_bci.bug")
+  cat(" model {
+      
+      for( i in 1:ntree ) {
+      
+      alive[i] ~ dbern(t[i])
+      
+      t[i] <- pow(z[i], days[i]/365.25)
+      
+      logit(z[i]) <- beta.1[species[i]]
+      + beta.2[species[i]] * allnci[i]
+      + beta.3[species[i]] * dbh[i]
+      }
+      
+      for( j in 1:nspecies ) {
+      ### MULTIVARIATE TRAITS ###
+      beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[1])
+      beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[2])
+      beta.3[j] ~ dnorm(mu.beta[3], tau[3])
+      
+      ### TURN ON ITV (v3) ###
+      t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
+      for (N in 1:2){
+      pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
+      pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
+      ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
+      sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
+      }
+      }
+      
+      ### PRIORS ####
+      for( m in 1:3 ) {
+      mu.beta[m] ~ dnorm(0, 1E-3)
+      }
+      
+      for( b in 1:2 ) {
+      beta.wd[b] ~ dnorm(0, 1E-3)
+      beta.lma[b] ~ dnorm(0, 1E-3)
+      sd[b] ~ dgamma(1E-3, 1E-3)
+      }
+      
+      for( t in 1:3 ) {
+      tau[t] ~ dgamma(1E-3, 1E-3)
+      }
+      
+      sigma <- 1 / sqrt(tau)
+      pred.sigma <- 1 / sqrt(pred.tau)
+      
+}"
     , fill=TRUE)
-sink()
-
-
-
-sink("survival_6.2.16_coc.she.bug")
-cat(" model {
-    
-    for( i in 1:ntree ) {
-    
-    alive[i] ~ dbern(t[i])
-
-    t[i] <- pow(z[i], days[i]/365.25)
-    
-    logit(z[i]) <- beta.1[species[i]]
-    + beta.2[species[i]] * allnci[i]
-    + beta.3[species[i]] * dbh[i]
-    + indiv.effect[indiv[i]] * indicator[i]
-    }
-    
-    for( j in 1:nspecies ) {
-    ### MULTIVARIATE TRAITS ###
-    beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[1])
-    beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[2])
-    beta.3[j] ~ dnorm(mu.beta[3], tau[3])
-    
-    ### TURN OFF ITV
-    #           wd.pred[j] <- wd.mean.z[j]
-    #           lma.pred[j] <- lma.mean.z[j]
-    
-    ### TURN ON ITV (v1) ###
-    #              for (N in 1:2){ t.pred[j,N] ~ dnorm(tmeans.z[j,N], ttaus.z[j,N]) }
-    
-    ### TURN ON ITV (v2) ###
-    #             t.pred[j,1:2] ~ dmnorm(tmeans.z[j,], omega[,])
-    
-    ### TURN ON ITV (v3) ###
-    t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
-        for (N in 1:2){
-            pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-            pred.tau[j,N] ~ dgamma(sh[j,2], ra[j,N])
-            ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
-            sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
-        }
-    }
-    
-    ### PRIORS ####
-    for( m in 1:3 ) {
-    mu.beta[m] ~ dnorm(0, 1E-3)
-    }
-    
-    for( b in 1:2 ) {
-    beta.wd[b] ~ dnorm(0, 1E-3)
-    beta.lma[b] ~ dnorm(0, 1E-3)
-    sd[b] ~ dunif(0, 100)
-    }
-    
-    for( i.a in 1:nindiv ) {
-    indiv.effect[i.a] ~ dnorm(0, tau[4])
-    }
-    
-    for( t in 1:4 ) {
-    tau[t] ~ dgamma(1E-3, 1E-3)
-    }
-    
-    sigma <- 1 / sqrt(tau)
-    pred.sigma <- 1 / sqrt(pred.tau)
-    
-    }"
+  sink()
+  
+  
+  sink("survival_6.14.16_coc.she.bug")
+  cat(" model {
+      
+      for( i in 1:ntree ) {
+      
+      alive[i] ~ dbern(t[i])
+      
+      t[i] <- pow(z[i], days[i]/365.25)
+      
+      logit(z[i]) <- beta.1[species[i]]
+      + beta.2[species[i]] * allnci[i]
+      + beta.3[species[i]] * dbh[i]
+      + indiv.effect[indiv[i]] * indicator[i]
+      }
+      
+      for( j in 1:nspecies ) {
+      ### MULTIVARIATE TRAITS ###
+      beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[1])
+      beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[2])
+      beta.3[j] ~ dnorm(mu.beta[3], tau[3])
+      
+      ### TURN ON ITV (v3) ###
+      t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
+      for (N in 1:2){
+      pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
+      pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
+      ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
+      sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
+      }
+      }
+      
+      ### PRIORS ####
+      for( m in 1:3 ) {
+      mu.beta[m] ~ dnorm(0, 1E-3)
+      }
+      
+      for( b in 1:2 ) {
+      beta.wd[b] ~ dnorm(0, 1E-3)
+      beta.lma[b] ~ dnorm(0, 1E-3)
+      sd[b] ~ dgamma(1E-3, 1E-3)
+      }
+      
+      for( i.a in 1:nindiv ) {
+      indiv.effect[i.a] ~ dnorm(0, tau[4])
+      }
+      
+      for( t in 1:4 ) {
+      tau[t] ~ dgamma(1E-3, 1E-3)
+      }
+      
+      sigma <- 1 / sqrt(tau)
+      pred.sigma <- 1 / sqrt(pred.tau)
+      
+      }"
     , fill=TRUE)
-sink()
-}
+  sink()
+  }
 
 ################################################
 ### Set initial values, monitors, iterations and run model ###
@@ -269,7 +264,7 @@ if(p==2){  inits <- function (){
     beta.wd = rnorm(2),
     beta.lma = rnorm(2),
     mu.beta = rnorm(3),
-    sd = runif(2, 0, 100),
+    sd =  rgamma(2, 1E3, 1E3),
     tau = rgamma(3, 1E3, 1E3))
 }}
 if(p!=2){  inits <- function (){
@@ -277,64 +272,61 @@ if(p!=2){  inits <- function (){
     beta.wd = rnorm(2),
     beta.lma = rnorm(2),
     mu.beta = rnorm(3),
-    sd = runif(2, 0, 100),
+    sd = rgamma(2, 1E3, 1E3),
     tau = rgamma(4, 1E3, 1E3))
 }}
 
 # Set monitors & run model
-params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'pred.sigma','t.pred','pred.tmeans')
+params <- c('beta.wd','beta.lma','mu.beta','sigma')
 
 adapt <- 5000
-iter <- 50000
-burn <- 40000
-thin <- 20
+iter <- 25000
+burn <- 20000
+thin <- 10
 chains <- 3
 
 setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
-modfile <- ifelse(p!=2, "survival_6.2.16_coc.she.bug", "survival_6.2.16_bci.bug")
-warning(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'< 10cm','> 10cm'))), immediate.=T)
+modfile <- ifelse(p!=2, "survival_6.14.16_coc.she.bug", "survival_6.14.16_bci.bug")
+warning(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'< 10cm','> 10cm'),sep=" ")))
 
-mod <- jagsUI::jags(data, inits, params, modfile, n.chains=chains, n.adapt=adapt, 
-                    n.iter=iter, n.burnin=burn, n.thin=thin, parallel=T)
+mod <- jagsUI::jags(data, inits, params, modfile, 
+                    n.chains=chains, n.adapt=adapt, 
+                    n.iter=iter, n.burnin=burn, n.thin=thin, 
+                    parallel=T, store.data=T)
 
 # mod
 # plot(mod)
 # plot.params.2(mod)
 # plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
 # plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
+# plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.lma[1]']))
+# plot(unlist(mod$samples[,'beta.wd[2]']), unlist(mod$samples[,'beta.lma[2]']))
 # plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
-# 
 
-# par(mfrow=c(2,2))
-# 
-# plot(data$wd.mean.z, mod$q50$wd.pred, ylim=c(min(mod$q2.5$wd.pred), max(mod$q97.5$wd.pred)))
-# segments(data$wd.mean.z, mod$q2.5$wd.pred, data$wd.mean.z, mod$q97.5$wd.pred, col=rgb(0,0,0,.5))
-# abline(0,1)
-# 
-# plot(data$lma.mean.z, mod$q50$lma.pred, ylim=c(min(mod$q2.5$lma.pred), max(mod$q97.5$lma.pred)))
-# segments(data$lma.mean.z, mod$q2.5$lma.pred, data$lma.mean.z, mod$q97.5$lma.pred, col=rgb(0,0,0,.5))
-# abline(0,1)
-
-
-for(reps in 1:2){
+for(reps in 1:10){
   if(max(unlist(mod$Rhat)) > 1.1){
-    warning(paste('Doing update #', reps),immediate.=T)
+    print(paste('Doing update #', reps))
     mod <- update(mod, n.iter=10000)
   }
 }
 
-setwd('K:/Bob/Panama/RESULTS/_6.6.16/survival/')
-modfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
-saveRDS(mod, file=modfile)
-datfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Input.Rdata',sep=".")
-saveRDS(data, file=datfile)
+setwd("K:/Bob/Panama/RESULTS/_6.14.16/growth") 
 
-}
+file <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
+saveRDS(mod, file=file)
+
 #}
 #}
 
 
 
+
+
+plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
+plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
+plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
+
+plot(mod$q50['t.pred'][[1]][,1], mod$q50['t.pred'][[1]][,2])
 
 
 
@@ -357,7 +349,7 @@ plot.params.2 <- function(mod){
   x <- cbind(unlist(mod$q2.5), unlist(mod$q50), unlist(mod$q97.5))
   x <- x[-grep('deviance', rownames(x)),]
   x <- x[-grep('sigma', rownames(x)),]
-  #   x <- x[-grep('pred', rownames(x)),]
+  # x <- x[-grep('pred', rownames(x)),]
   #   x <- x[-grep('wd.mu', rownames(x)),]
   #   x <- x[-grep('lma.mu', rownames(x)),]
   bg <- ifelse(sign(x[,1]) == sign(x[,3]), 1, 'white')
@@ -368,3 +360,4 @@ plot.params.2 <- function(mod){
   axis(1, labels=rownames(x), at=1:nrow(x), las=2)
   axis(2); box()
 }
+

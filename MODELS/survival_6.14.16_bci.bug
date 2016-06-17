@@ -1,0 +1,48 @@
+ model {
+          
+    for( i in 1:ntree ) {
+    
+          alive[i] ~ dbern(t[i])
+          
+          t[i] <- pow(z[i], days[i]/365.25)
+          
+          logit(z[i]) <- beta.1[species[i]]
+          + beta.2[species[i]] * allnci[i]
+          + beta.3[species[i]] * dbh[i]
+    }
+          
+          for( j in 1:nspecies ) {
+          ### MULTIVARIATE TRAITS ###
+          beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[1])
+          beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[2])
+          beta.3[j] ~ dnorm(mu.beta[3], tau[3])
+          
+          ### TURN ON ITV (v3) ###
+          t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
+          for (N in 1:2){
+          pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
+          pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
+          ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
+          sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
+          }
+          }
+
+          ### PRIORS ####
+          for( m in 1:3 ) {
+          mu.beta[m] ~ dnorm(0, 1E-3)
+          }
+          
+          for( b in 1:2 ) {
+          beta.wd[b] ~ dnorm(0, 1E-3)
+          beta.lma[b] ~ dnorm(0, 1E-3)
+          sd[b] ~ dgamma(1E-3, 1E-3)
+          }
+          
+          for( t in 1:3 ) {
+          tau[t] ~ dgamma(1E-3, 1E-3)
+          }
+          
+          sigma <- 1 / sqrt(tau)
+          pred.sigma <- 1 / sqrt(pred.tau)
+          
+    }

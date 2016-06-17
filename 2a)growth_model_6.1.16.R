@@ -16,7 +16,7 @@ pc <- T
 #######################################
 if(pc==T){
   setwd("K:/Bob/Panama/DATA") 
-  load("Panama_AnalysisData_6.7.16.RDA") # tdata
+  load("Panama_AnalysisData_6.14.16.RDA") # tdata
   load("panama_ITV_traits_6.7.16.RDA") # traits
 }
 
@@ -29,13 +29,11 @@ if(pc==F){
   load("panama_ITV_traits_6.7.16.RDA") # traits
 }
 
-tdata <- tdata[!is.na(tdata$All.NCI),]
-tdata <- tdata[tdata$Not.Edge==1,]
+tdata <- tdata[!is.na(tdata$growth) & !is.na(tdata$All.NCI) & tdata$Not.Edge==1,]
 tdata <- droplevels(tdata)
-tdata$log.all.nci <- log(tdata$All.NCI + 1)
-tdata$log.con.nci <- log(tdata$Con.NCI + 1)
-tdata$log.dbh <- log(tdata$dbh)
 
+tdata$log.all.nci <- log(tdata$All.NCI + 1)
+tdata$log.dbh <- log(tdata$dbh)
 traits$log.LMA.mean <- log(traits$LMA.mean)
 ###########################
 
@@ -43,32 +41,23 @@ traits$log.LMA.mean <- log(traits$LMA.mean)
 ###########################
 #### Prepare data for input  ####
 ###########################
-tdata <- tdata[tdata$Growth.Include.3 == TRUE,]
-tdata <- tdata[tdata$growth > (-75),]
-
-#####################
-#### Start Loop  ####
-#####################
-# traits <- c('WSG','log.LMA')
-# for (trt in 1:length(traits)) {
-
-# Drop species with NA for both traits
-d <- tdata
+# If you want to drop species with NA for both traits
 #d <- tdata[tdata$spplot %in% traits$sp[!is.na(traits$WD.mean)] | tdata$spplot %in% traits$sp[!is.na(traits$log.LMA.mean)],]
-#d <- tdata[tdata$spplot %in% traits$sp[!is.na(traits$WD.mean)],]
-#d <- d[d$spplot %in% traits$sp[!is.na(traits$log.LMA.mean)],]
+
+# Or not
+d <- tdata
+
 d <- droplevels(d)
 
 
 ##################################################
 #### Start loop to model each plot separately ####
 ##################################################
-p <- 2
-#for(p in 1:3){
+#p <- 1
+for(p in c(1,3)){
 
 dp <- d[d$plot==p,]
 
-#dp <- dp[sample(1:nrow(dp),2000),]
 ######################################################################################
 #### Standardize and Center coefficients (within plots, within size classes 10cm) ####
 ######################################################################################
@@ -76,21 +65,22 @@ dp <- d[d$plot==p,]
 cutoff <- (100)  # Setting cutoff to neg value will put everything in 1 size class.
 dp$size.class <- ifelse(dp$dbh <= cutoff, 1, 2)
 
-### Center / scale other variables within size class
-for (i in 1:2){
-  dp$log.dbh.z[dp$size.class %in% i] <- as.vector(scale(dp$log.dbh[dp$size.class %in% i]))
-  dp$log.all.nci.z[dp$size.class %in% i] <- as.vector(scale(dp$log.all.nci[dp$size.class %in% i]))
-  dp$log.con.nci.z[dp$size.class %in% i] <- as.vector(scale(dp$log.con.nci[dp$size.class %in% i]))
-  dp$growth.z[dp$size.class %in% i] <- as.vector(scale(dp$growth[dp$size.class %in% i], center=F))
-}
-
-
-size <- 1
-#    for(size in 1:2) {
+#size <- 1
+    for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
-dps <- dps[,c('spplot','plot','census','growth.z',
-              'log.dbh.z','id','log.all.nci.z','log.con.nci.z')]
+dps$sd5.growth  <- (abs(dps$growth) < (sd(dps$growth)*5))
+
+#dps <- dps[dps$sd5.growth,]
+dps <- dps[dps$sd5.growth & dps$Growth.Include.3,]
+
+### Center / scale other variables within size class
+dps$log.dbh.z <- as.vector(scale(dps$log.dbh))
+dps$log.all.nci.z <- as.vector(scale(dps$log.all.nci))
+dps$growth.z <- as.vector(scale(dps$growth, center=F))
+
+dps <- dps[,c('spplot','plot','census','growth.z','growth','dbh',
+              'log.dbh.z','id','log.all.nci.z')]
 
 # Create an individual ID
 dps <- droplevels(dps)
@@ -150,6 +140,8 @@ if(p!=2){
   data$indicator <- as.numeric(data$indiv %in% repindiv)
 }
 
+
+
 ##############################
 #### Write the model file? ####
 ##############################
@@ -179,7 +171,7 @@ cat(" model {
     t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
           for (N in 1:2){
           pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-          pred.tau[j,N] ~ dgamma(sh[j,2], ra[j,N])
+          pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
           ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
           sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
           }
@@ -242,7 +234,7 @@ cat(" model {
     t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
     for (N in 1:2){
     pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-    pred.tau[j,N] ~ dgamma(sh[j,2], ra[j,N])
+    pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
     ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
     sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
     }
@@ -256,7 +248,7 @@ cat(" model {
     for( b in 1:2 ) {
     beta.wd[b] ~ dnorm(0, 1E-3)
     beta.lma[b] ~ dnorm(0, 1E-3)
-    sd[b] ~ dunif(0, 100)
+    sd[b] ~ dgamma(1E-3, 1E-3) #dunif(0, 100)
     }
     
     for( i.a in 1:nindiv ) {
@@ -284,7 +276,7 @@ if(p==2){  inits <- function (){
       beta.wd = rnorm(2),
       beta.lma = rnorm(2),
       mu.beta = rnorm(3),
-      sd = runif(2, 0, 100),
+      sd =  rgamma(2, 1E3, 1E3),#runif(2, 0, 100),
       tau = rgamma(4, 1E3, 1E3))
   }}
 if(p!=2){  inits <- function (){
@@ -292,44 +284,36 @@ if(p!=2){  inits <- function (){
     beta.wd = rnorm(2),
     beta.lma = rnorm(2),
     mu.beta = rnorm(3),
-    sd = runif(2, 0, 100),
+    sd = rgamma(2, 1E3, 1E3),#runif(2, 0, 100),
     tau = rgamma(5, 1E3, 1E3))
 }}
 
 # Set monitors & run model
-params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'pred.sigma','t.pred','pred.tmeans')
+params <- c('beta.wd','beta.lma','mu.beta','sigma')
 
 adapt <- 5000
-iter <- 50000
-burn <- 40000
-thin <- 20
+iter <- 25000
+burn <- 20000
+thin <- 10
 chains <- 3
 
 setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
 modfile <- ifelse(p!=2, "growth_6.2.16_coc.she.bug", "growth_6.2.16_bci.bug")
 warning(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'< 10cm','> 10cm'),sep=" ")))
 
-mod <- jagsUI::jags(data, inits, params, modfile, n.chains=chains, n.adapt=adapt, 
-                    n.iter=iter, n.burnin=burn, n.thin=thin, parallel=T)
-# 
+mod <- jagsUI::jags(data, inits, params, modfile, 
+                    n.chains=chains, n.adapt=adapt, 
+                    n.iter=iter, n.burnin=burn, n.thin=thin, 
+                    parallel=T, store.data=T)
+
 # mod
 # plot(mod)
 # plot.params.2(mod)
 # plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
 # plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
+# plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.lma[1]']))
+# plot(unlist(mod$samples[,'beta.wd[2]']), unlist(mod$samples[,'beta.lma[2]']))
 # plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
-# 
-
-# par(mfrow=c(2,2))
-# 
-# plot(data$wd.mean.z, mod$q50$wd.pred, ylim=c(min(mod$q2.5$wd.pred), max(mod$q97.5$wd.pred)))
-# segments(data$wd.mean.z, mod$q2.5$wd.pred, data$wd.mean.z, mod$q97.5$wd.pred, col=rgb(0,0,0,.5))
-# abline(0,1)
-# 
-# plot(data$lma.mean.z, mod$q50$lma.pred, ylim=c(min(mod$q2.5$lma.pred), max(mod$q97.5$lma.pred)))
-# segments(data$lma.mean.z, mod$q2.5$lma.pred, data$lma.mean.z, mod$q97.5$lma.pred, col=rgb(0,0,0,.5))
-# abline(0,1)
-
 
 for(reps in 1:10){
   if(max(unlist(mod$Rhat)) > 1.1){
@@ -338,19 +322,23 @@ for(reps in 1:10){
   }
 }
 
-setwd("K:/Bob/Panama/RESULTS/_6.6.16/growth") 
+setwd("K:/Bob/Panama/RESULTS/_6.14.16/growth") 
 
-modfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
-saveRDS(mod, file=modfile)
-datfile <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Input.Rdata',sep=".")
-saveRDS(mod, file=datfile)
+file <- paste(ifelse(p==1,'coc',ifelse(p==2,'bci','she')), ifelse(size==1,'sm','lg'), 'Rdata',sep=".")
+saveRDS(mod, file=file)
 
-#}
-#}
-#}
+}
+}
 
 
 
+
+
+plot(unlist(mod$samples[,'beta.wd[1]']), unlist(mod$samples[,'beta.wd[2]']))
+plot(unlist(mod$samples[,'beta.lma[1]']), unlist(mod$samples[,'beta.lma[2]']))
+plot(unlist(mod$samples[,'mu.beta[1]']), unlist(mod$samples[,'mu.beta[2]']))
+
+plot(mod$q50['t.pred'][[1]][,1], mod$q50['t.pred'][[1]][,2])
 
 
 
@@ -373,7 +361,7 @@ plot.params.2 <- function(mod){
   x <- cbind(unlist(mod$q2.5), unlist(mod$q50), unlist(mod$q97.5))
   x <- x[-grep('deviance', rownames(x)),]
   x <- x[-grep('sigma', rownames(x)),]
-  #   x <- x[-grep('pred', rownames(x)),]
+  # x <- x[-grep('pred', rownames(x)),]
   #   x <- x[-grep('wd.mu', rownames(x)),]
   #   x <- x[-grep('lma.mu', rownames(x)),]
   bg <- ifelse(sign(x[,1]) == sign(x[,3]), 1, 'white')

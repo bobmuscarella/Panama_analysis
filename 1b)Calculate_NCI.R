@@ -2,7 +2,7 @@ library(data.table)
 library(parallel)
 library(snow)
 
-setwd("K:/Bob/Panama/GIT/Panama_analysis/DATA")
+setwd("K:/Bob/Panama/DATA")
 
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
@@ -73,52 +73,13 @@ nci <- parLapply(cl, 1:nrow(tdata), Neigh.Fun, tdata)
 nci <- do.call('rbind', nci)
 stopCluster(cl)
 
-
-save(nci, file='NCI_for_panama_traits_preNCI_6.1.16.RDA')
-
-
-
-
-
-
-
-
-
-
-dim(tdata)
-dim(nci)
-
-
-# ADD 
-setwd("K:/Bob/Panama/DATA")
-load("panama_NCI_Traits_12.9.15.RDA")
-oldnci <- tdata$nci
-
-
-setwd("K:/Bob/Panama/DATA") 
-tdata <- readRDS("Panama_AnalysisData_3.8.16.RDS")
-newnci <- tdata$nci
-
-oldnci[10:20]
-newnci[10:20]
-
-which( round(newnci,2) %in% round(46616.11,2))
-
-head(oldnci[!is.na(oldnci)])
-
-
-
-plot(log(tdata$Big.NCI+1), log(nci[,1]+1))
-abline(0,1)
+nci <- round(nci, 4)
 
 tdata <- cbind(tdata, nci)
 
+tdata <- as.data.frame(tdata)
 
-
-
-tdata <- cbind(tdata, nci)
-
-# save(tdata, file="panama_NCI_Traits_12.9.15.RDA")
+# save(tdata, file="panama_NCI_Traits_6.14.16.RDA")
 
 
 

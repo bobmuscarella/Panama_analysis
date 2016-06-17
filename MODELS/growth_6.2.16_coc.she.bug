@@ -30,7 +30,7 @@
     t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
     for (N in 1:2){
     pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-    pred.tau[j,N] ~ dgamma(sh[j,2], ra[j,N])
+    pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
     ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
     sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
     }
@@ -44,7 +44,7 @@
     for( b in 1:2 ) {
     beta.wd[b] ~ dnorm(0, 1E-3)
     beta.lma[b] ~ dnorm(0, 1E-3)
-    sd[b] ~ dunif(0, 100)
+    sd[b] ~ dgamma(1E-3, 1E-3) #dunif(0, 100)
     }
     
     for( i.a in 1:nindiv ) {
