@@ -69,6 +69,7 @@ bci4$survival <- ifelse(bci4$StatusFinal == 'alive', 1, 0)
 bci4$days <- as.numeric(bci4$DateFinal - bci4$Date)
 bci4$growth <- ((bci4$dbhFinal - bci4$dbhStart)/bci4$days) * 365
 bci4$log.growth <- ((log(bci4$dbhFinal) - log(bci4$dbhStart))/(bci4$days)) * 365
+bci4$RGR <- log(bci4$dbhFinal/bci4$dbhStart)/(bci4$days/365)
 
 bci <- bci4
 
@@ -79,8 +80,10 @@ bci$spcode <- spcodes$spcode[match(bci$Latin, paste(spcodes$Genus, spcodes$Speci
 
 bci <- droplevels(bci)
 
-bci <- bci[,c('Tag','Latin','spcode','PX','PY','Not.edge','plot', 'census', 'dbhStart', 'growth','log.growth','survival','days')]
-names(bci) <- c('tag','latin','spcode','x','y','Not.Edge','plot','census','dbh','growth','log.growth','survival','days')
+bci <- bci[,c('Tag','Latin','spcode','PX','PY','Not.edge','plot', 'census', 
+              'dbhStart', 'growth','log.growth','RGR','survival','days')]
+names(bci) <- c('tag','latin','spcode','x','y','Not.Edge','plot','census','dbh',
+                'growth','log.growth','RGR','survival','days')
 bci$id <- as.numeric(rownames(bci))
 
 bci <- bci[!is.na(bci$survival),]
@@ -91,13 +94,12 @@ bci$tag <- NULL
 # save(bci, file='bci/bci_preNCI.RDA')
 # save(bci, file='bci/bci_preNCI_10.23.15.RDA')
 # save(bci, file='bci/bci_preNCI_12.9.15.RDA')
-save(bci, file='bci/bci_preNCI_6.1.16.RDA')
-
+# save(bci, file='bci/bci_preNCI_6.1.16.RDA')
 
 ################################
 ### ADD OTHER PANAMA PLOTS ###
 ################################
-load(file='bci/bci_preNCI_6.1.16.RDA')
+# load(file='bci/bci_preNCI_6.1.16.RDA')
 head(bci)
 
 coc <- read.csv("cocoli/cocoli.csv")
@@ -151,16 +153,22 @@ tmp$dbh3 <- ifelse(tmp$dbh3 < 0, NA, tmp$dbh3)
 
 tmp$grow12 <- ((tmp$dbh2 - tmp$dbh1) / (tmp$date2 - tmp$date1))* 365
 tmp$log.grow12 <- ((log(tmp$dbh2) - log(tmp$dbh1)) / (tmp$date2 - tmp$date1))* 365
+tmp$RGR12 <- log(tmp$dbh2/tmp$dbh1) / ((tmp$date2 - tmp$date1) / 365)
 
 valid1 <- ifelse(tmp$recr1=='A' & as.character(tmp$recr1) == as.character(tmp$recr2) & tmp$pom1 == tmp$pom2, 1, 0)
 tmp$grow12 <- ifelse(valid1==1, tmp$grow12, NA)
 tmp$log.grow12 <- ifelse(valid1==1, tmp$log.grow12, NA)
+tmp$RGR12 <- ifelse(valid1==1, tmp$RGR12, NA)
 
 tmp$grow23 <- ((tmp$dbh3 - tmp$dbh2) / (tmp$date3 - tmp$date2))* 365
 tmp$log.grow23 <- ((log(tmp$dbh3) - log(tmp$dbh2) / (tmp$date3 - tmp$date2)))* 365
+tmp$RGR23 <- log(tmp$dbh3/tmp$dbh2) / ((tmp$date3 - tmp$date2) / 365)
+
 valid2 <- ifelse(tmp$recr2=='A' & as.character(tmp$recr2) == as.character(tmp$recr3) & tmp$pom2 == tmp$pom3, 1, 0)
 tmp$grow23 <- ifelse(valid2==1, tmp$grow23, NA)
 tmp$log.grow23 <- ifelse(valid2==1, tmp$log.grow23, NA)
+tmp$RGR23 <- ifelse(valid2==1, tmp$RGR23, NA)
+
 
 # SURVIVAL
 tmp$survive12 <- ifelse(tmp$recr1=='A' & as.character(tmp$recr1) == as.character(tmp$recr2), 1, NA)
@@ -176,12 +184,13 @@ head(tmp)
 
 # Clean up
 tmp <- tmp[,c("tag","spcode","x","y",'dbh1','dbh2',"Not.Edge","plot",
-						"grow12","grow23","log.grow12","log.grow23","survive12","survive23","int12","int23")]
+						"grow12","grow23","log.grow12","log.grow23","RGR12","RGR23",
+            "survive12","survive23","int12","int23")]
 
-tmp2 <- reshape(tmp, varying=c(list(5:6), list(9:10), list(11:12), list(13:14), list(15:16)), direction='long')
+tmp2 <- reshape(tmp, varying=c(list(5:6), list(9:10), list(11:12), list(13:14), list(15:16), list(17:18)), direction='long')
 tmp2 <- tmp2[order(tmp2$tag),]
-names(tmp2)[7:12] <- c('census','dbh','growth','log.growth','survival','days')
-tmp2 <- tmp2[,c(1:13)]
+names(tmp2)[7:13] <- c('census','dbh','growth','log.growth','RGR','survival','days')
+tmp2 <- tmp2[,c(1:14)]
 tmp2$tag <- NULL
 
 rownames(tmp2) <- NULL
@@ -190,7 +199,8 @@ tdata <- tmp2
 tdata$latin[tdata$plot=='cocoli'] <- paste(cocsp$genus, cocsp$species)[match(tdata$spcode, cocsp$spcode)][tdata$plot=='cocoli']
 tdata$latin[tdata$plot=='sherman'] <- paste(shesp$genus, shesp$species)[match(tdata$spcode, shesp$spcode)][tdata$plot=='sherman']
 
-tdata <- tdata[,c("latin","spcode","x","y","Not.Edge","plot","census","dbh","growth","log.growth","survival","days","id")]
+tdata <- tdata[,c("latin","spcode","x","y","Not.Edge","plot","census","dbh",
+                  "growth","log.growth","RGR","survival","days","id")]
 
 tdata <- rbind(tdata, bci)
 
@@ -201,12 +211,12 @@ tdata <- tdata[tdata$dbh != 0 , ]
 # save(tdata, file='panama_preNCI.RDA')
 # save(tdata, file='panama_preNCI_10.23.15.RDA')
 # save(tdata, file='panama_preNCI_12.9.15.RDA')
-save(tdata, file='panama_preNCI_6.1.16.RDA')
+# save(tdata, file='panama_preNCI_6.1.16.RDA')
 
 ##################################
 ### CHUNK 2 : IDENTIFY PALMS ####
 ##################################
-load('panama_preNCI_6.1.16.RDA')
+# load('panama_preNCI_6.1.16.RDA')
 
 bcisp <- read.csv("bci/spcodes.csv")
 cocsp <- read.table("cocoli/cocolisp.txt", header=T)
@@ -619,7 +629,7 @@ length(unique(splist$latin[!is.na(splist$bcigen.WD.mean)]))
 
 
 
-save(tdata, file='panama_traits_preNCI_6.1.16.RDA')
+# save(tdata, file='panama_traits_preNCI_6.1.16.RDA')
 
 #######################################
 ###  START HERE WITH PROCESSED DATA ###
@@ -628,7 +638,13 @@ save(tdata, file='panama_traits_preNCI_6.1.16.RDA')
 # load('NCI_for_panama_traits_preNCI_6.14.16.RDA') # nci
 
 ### Current version from PC, post-NCI incorporation
+# load('panama_NCI_Traits_6.14.16.RDA') # tdata
+
+tdata.tmp <- tdata
 load('panama_NCI_Traits_6.14.16.RDA') # tdata
+tdata.tmp$All.NCI <- tdata$All.NCI
+tdata.tmp$Con.NCI <- tdata$Con.NCI
+tdata <- tdata.tmp
 
 # load("alldata_NCI.RDA")
 # load("panama_NCI_Traits_tNCI_uNCI_10.26.15.RDA")
@@ -813,15 +829,15 @@ load('panama_NCI_Traits_6.14.16.RDA') # tdata
 
 # save(tdata, file="panama_NCI_Traits_12.9.15.RDA")
 
-traits <- splist
-save(traits, file="panama_ITV_traits_6.7.16.RDA")
+# traits <- splist
+# save(traits, file="panama_ITV_traits_6.7.16.RDA")
 
 
 
 ###############################
 ### CURRENT CONSIDERATIONS: ###
 ###############################
-load("panama_NCI_Traits_6.14.16.RDA") # tdata
+#load("panama_NCI_Traits_6.14.16.RDA") # tdata
 load("panama_ITV_traits_6.7.16.RDA") # traits
 
 head(tdata)
@@ -829,6 +845,7 @@ head(traits)
 
 ### Remove palms from growth analyses...
 tdata$growth[tdata$palm==T] <- NA
+tdata$RGR[tdata$palm==T] <- NA
 
 ### What to do about growth outliers? 
 ### One option is the remove stems that grew more than a fixed amount (e.g. > 5 sd per plot, per size class)
@@ -895,8 +912,8 @@ z.score <- function (data, scale=T, center=T) {
 
 
 #save(tdata, file='Panama_AnalysisData_12.9.15.RDA')
-save(tdata, file='Panama_AnalysisData_6.14.16.RDA')
-
+# save(tdata, file='Panama_AnalysisData_6.14.16.RDA')
+save(tdata, file='Panama_AnalysisData_12.17.16.RDA')
 
 
 

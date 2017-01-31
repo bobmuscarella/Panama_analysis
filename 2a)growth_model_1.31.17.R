@@ -4,9 +4,13 @@
 ###  ONLY NCI, DBH BY SIZE CLASS
 ###  Results in "K:/Bob/Panama/RESULTS/..."
 #######################################
-library(jagsUI)
 library(rjags)
-library(sp)
+load.module('mix')
+set.factory("mix::TemperedMix", 'sampler', FALSE)
+load.module('glm')
+library(coda)
+library(runjags)
+library(jagsUI)
 
 ### Running on PC???
 pc <- F
@@ -69,20 +73,17 @@ dp$size.class <- ifelse(dp$dbh <= cutoff, 1, 2)
     for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
-dps$sd5.growth  <- (abs(dps$growth) < (sd(dps$growth)*5))
-dps$sd5.RGR  <- (abs(dps$RGR) < (sd(dps$RGR)*5))
+#dps$sd5.growth  <- (abs(dps$growth) < (sd(dps$growth)*5))
 
-#dps <- dps[dps$sd5.growth,]
-dps <- dps[dps$sd5.growth & dps$Growth.Include.3,]
-#dps <- dps[dps$sd5.RGR & dps$Growth.Include.3,]
+dps <- dps[dps$Growth.Include.3,]
+#dps <- dps[dps$sd5.growth & dps$Growth.Include.3,]
 
 ### Center / scale other variables within size class
 dps$log.dbh.z <- as.vector(scale(dps$log.dbh))
 dps$log.all.nci.z <- as.vector(scale(dps$log.all.nci))
 dps$growth.z <- as.vector(scale(dps$growth, center=F))
-dps$RGR.z <- as.vector(scale(dps$RGR, center=F))
 
-dps <- dps[,c('spplot','plot','census','growth.z','RGR.z','growth','dbh',
+dps <- dps[,c('spplot','plot','census','growth.z','growth','dbh',
               'log.dbh.z','id','log.all.nci.z','days')]
 
 # Create an individual ID
@@ -122,7 +123,6 @@ colnames(ttaus.z) <- NULL
 
 omega <- matrix(nrow=2, ncol=2, data=c(wd.sp.tau, tcor, tcor, lma.sp.tau))
 
-
 omegas <- list()
 for(i in 1:length(wd.mean.z)){
   omegas[[i]] <- matrix(ncol=2,nrow=2,data=c(wd.tau.z[i],
@@ -151,6 +151,7 @@ data = list (
   omegas = omegas
 )
 
+
 ### Add an indicator to set individual effect of non-rep indiv to zero
 # if(p!=2){
 #   repindiv <- names(table(data$indiv))[table(data$indiv) > 1]
@@ -166,156 +167,134 @@ write.mods <- F
 if(write.mods==T){
 setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS") 
 
-sink("growth_12.17.16_bci.bug")
-cat(" model {
-    
-    for( i in 1:ntree ) {
-    
-    growth[i] ~ dnorm(mu[i], tau[1])
-    y.rep[i] <- dnorm(mu[i], tau[1])
-    sq.res[i] <- pow(growth[i] - y.rep[i], 2)
-    sq.tot[i] <- pow(growth[i] - y.mean, 2)
-
-    mu[i] <- beta.1[species[i]]
-    + beta.2[species[i]] * allnci[i]
-    + beta.3[species[i]] * dbh[i]
-    }
-    
-    for( j in 1:nspecies ) {
-    ### MULTIVARIATE TRAITS ###
-    beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[2])
-    beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[3])
-    beta.3[j] ~ dnorm(mu.beta[3], tau[4])
-    
-    ### TURN ON ITV (v3) ###
-    t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
-          for (N in 1:2){
-          pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-          pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
-          ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
-          sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
-          }
-    }
-
-    ### PRIORS ####
-    for( m in 1:3 ) {
-    mu.beta[m] ~ dnorm(0, 1E-3)
-    }
-    
-    for( b in 1:2 ) {
-    beta.wd[b] ~ dnorm(0, 1E-3)
-    beta.lma[b] ~ dnorm(0, 1E-3)
-    sd[b] ~ dunif(0, 100)
-    }
-
-    for( t in 1:5 ) {
-    tau[t] ~ dgamma(1E-3, 1E-3)
-    }
-    
-    SStot <- sum(sq.tot)
-    SSres <- sum(sq.res)
-    R2 <- (1-(SSres/SStot))
-    sigma <- 1 / sqrt(tau)
-    pred.sigma <- 1 / sqrt(pred.tau)
-    
-    }"
-    , fill=TRUE)
-sink()
-
-
-
-sink("growth_12.17.16_coc.she.bug")
-cat(" model {
-    
-    for( i in 1:ntree ) {
-
-#    growth[i] ~ dnorm(mu[i], tau[1])
-
-    
-    growth[i] ~ dnorm(pred.mu[i], tau[1])
-    pred.mu[i] <- exp(pred.log.mu[i])
-       
-#     y.rep[i] ~ dnorm(mu[i], tau[1])
-#     sq.res[i] <- pow(growth[i] - y.rep[i], 2)
-#     sq.tot[i] <- pow(growth[i] - y.mean, 2)
-    
-    pred.log.mu[i] <- beta.1[species[i]]
-    + beta.2[species[i]] * allnci[i]
-    + beta.3[species[i]] * dbh[i]
-    + indiv.effect[indiv[i]] * indicator[i]
-    }
-    
-    for( j in 1:nspecies ) {
-    ### MULTIVARIATE TRAITS ###
-    beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[2])
-    beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[3])
-    beta.3[j] ~ dnorm(mu.beta[3], tau[4])
-
-    ### TURN ON ITV (v1) ###
-#       for (N in 1:2){ 
-#         t.pred[j,N] ~ dnorm(tmeans.z[j,N], ttaus.z[j,N]) 
-#       }
-    
-    ### TURN ON ITV (v3) ###
-    t.pred[j,1:2] ~ dmnorm(pred.tmeans[j,], omega[,])
-          for (N in 1:2){
-          pred.tmeans[j,N] ~ dnorm(tmeans.z[j,N], pred.tau[j,N])
-          pred.tau[j,N] ~ dgamma(sh[j,N], ra[j,N])
-          ra[j,N] <- (ttaus.z[j,N] + sqrt(ttaus.z[j,N]^2 + 4*sd[N]^2))/(2*sd[N]^2)
-          sh[j,N] <- (1 + ttaus.z[j,N]*ra[j,N])
-          }
-    }
-    
-    ### PRIORS ####
-    for( m in 1:3 ) {
-    mu.beta[m] ~ dnorm(0, 1E-3)
-    }
-    
-    for( b in 1:2 ) {
-    beta.wd[b] ~ dnorm(0, 1E-3)
-    beta.lma[b] ~ dnorm(0, 1E-3)
-    sd[b] ~ dgamma(1E-3, 1E-3) #dunif(0, 100)
-    }
-    
-    for( i.a in 1:nindiv ) {
-    indiv.effect[i.a] ~ dnorm(0, tau[5])
-    }
-    
-    for( t in 1:5 ) {
-    tau[t] ~ dgamma(1E-3, 1E-3)
-    }
-    
-#     SSres <- sum(sq.res)
-#     SStot <- sum(sq.tot)
-#     R2 <- 1-(SSres/SStot)
-    sigma <- 1 / sqrt(tau)
-#    pred.sigma <- 1 / sqrt(pred.tau)
-    
-    }"
-    , fill=TRUE)
+  ##### Write the model with intraspecific variation #####
+  sink("Growth_Model_noITV_1.31.17.bug")
+  cat(" model {
+      
+      for (i in 1:N){
+      predict.log.growth[i] <- b0[sp[i]] 
+      + b1[sp[i]] * log.nci[i] 
+      + b2[sp[i]] * log.dbh[i] 
+      + i.tree[tree[i]]
+      
+      true.log.growth[i] ~ dnorm(predict.log.growth[i], process.tau)
+      true.growth[i] <- exp(true.log.growth[i])
+      
+      obs.growth[i] ~ dnormmix(mu[1:2, i], tau[1:2, i], f)
+      mu[1,i] <- true.growth[i]
+      mu[2,i] <- true.growth[i]
+      
+      sd1[i] <- (0.927 + 0.0038 * (dbh[i] + 15)) * 1.414 / days[i]
+      #    sd1[i] <- (0.927 + 0.0038 * (dbh[i] - 45)) * 1.414 / days[i]
+      tau[1,i] <- pow(sd1[i], -2)
+      sd2[i] <- 25.6 * 1.414 / days[i]
+      tau[2,i] <- pow(sd2[i], -2)
+      }
+      
+      for (j in 1:n.sp){
+      b0[j] ~ dnorm(b0.overall + (b0.wd * tmeans.z[j,1]) + (b0.lma * tmeans.z[j,2]), b0.sp.prec)
+      b1[j] ~ dnorm(b1.overall + (b1.wd * tmeans.z[j,1]) + (b1.lma * tmeans.z[j,2]), b1.sp.prec)
+      b2[j] ~ dnorm(b2.overall, b2.sp.prec)
+      
+      # b0[j] <- b0.overall + (b0.wd * tmeans.z[j,1]) + (b0.lma * tmeans.z[j,2]) + b0.sp[j]
+      # b1[j] <- b1.overall + (b1.wd * tmeans.z[j,1]) + (b1.lma * tmeans.z[j,2]) + b1.sp[j]
+      # b2[j] <- b2.overall + b2.sp[j]
+      # 
+      # b0.sp[j] ~ dnorm(0, b0.sp.prec)
+      # b1.sp[j] ~ dnorm(0, b1.sp.prec)
+      # b2.sp[j] ~ dnorm(0, b2.sp.prec)
+      }
+      
+      ### prior and random effect ##########
+      f[1] <- 0.9724
+      f[2] <- 0.0276
+      
+      for (i in 1:n.tree){
+      i.tree[i] ~ dnorm(0, i.tree.prec)
+      }
+      
+      process.tau ~ dunif(0.0001, 10000)
+      i.tree.prec ~ dunif(0.0001, 10000)
+      
+      b0.sp.prec ~ dunif(0.0001, 10000)
+      b1.sp.prec ~ dunif(0.0001, 10000)
+      b2.sp.prec ~ dunif(0.0001, 10000)
+      
+      b0.overall ~ dnorm(0, 1.0E-6)
+      b1.overall ~ dnorm(0, 1.0E-6)
+      b2.overall ~ dnorm(0, 1.0E-6)
+      
+      b0.wd ~ dnorm(0, 1.0E-6)
+      b1.wd ~ dnorm(0, 1.0E-6)
+      b0.lma ~ dnorm(0, 1.0E-6)
+      b1.lma ~ dnorm(0, 1.0E-6)
+      
+}"
+  , fill=TRUE)
 sink()
 }
 
 ################################################
 ### Set initial values, monitors, iterations and run model ###
 ################################################
+params <- c('b0.overall','b1.overall','b2.overall','b0.wd','b0.lma','b1.wd','b1.lma')
 
-if(p==2){  inits <- function (){
-    list(
-      beta.wd = rnorm(2),
-      beta.lma = rnorm(2),
-      mu.beta = rnorm(3),
-      sd =  rgamma(2, 1E3, 1E3),#runif(2, 0, 100),
-      tau = rgamma(4, 1E3, 1E3))
-  }}
-if(p!=2){  inits <- function (){
-  list(
-    beta.wd = rnorm(2),
-    beta.lma = rnorm(2),
-    mu.beta = rnorm(3),
-    sd = rgamma(2, 1E3, 1E3),#runif(2, 0, 100),
-    tau = rgamma(5, 1E3, 1E3))
-}}
+j.mod <- jags.model(file="Test_Growth_Model.bug", data=data, n.chains=3, n.adapt=1000)
+
+update(j.mod, n.iter=1000)
+
+samp <- jags.samples(j.mod, params, n.iter=900, n.thin=3)
+
+summary(samp$b0.wd, quantile, c(.025,0.5,.975))$stat
+
+
+# mod <- jagsUI::jags(data, inits=NULL, params, 'Test_Growth_Model_noITV.bug',
+#                     n.chains=3, n.adapt=1000,
+#                     n.iter=5000, n.burnin=2500, n.thin=1,
+#                     parallel=F, store.data=F, modules=c('mix','glm'))
+# 
+# mod <- update(mod, n.iter=5000, n.burnin=2500, n.thin=2, modules=c('mix','glm'))
+
+# mod <- run.jags(model='Test_Growth_Model2.bug', monitor=params, data=data, 
+#                 n.chains=3, burnin=500, sample=250, adapt=100, modules=c('mix','glm'), 
+#                 factories='mix::TemperedMix sampler off', thin=3)#, method='parallel')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+############################################
+############### OLD WAY ####################
+############################################
+
+# if(p==2){  inits <- function (){
+#     list(
+#       beta.wd = rnorm(2),
+#       beta.lma = rnorm(2),
+#       mu.beta = rnorm(3),
+#       sd =  rgamma(2, 1E3, 1E3),#runif(2, 0, 100),
+#       tau = rgamma(4, 1E3, 1E3))
+#   }}
+# if(p!=2){  inits <- function (){
+#   list(
+#     beta.wd = rnorm(2),
+#     beta.lma = rnorm(2),
+#     mu.beta = rnorm(3),
+#     sd = rgamma(2, 1E3, 1E3),#runif(2, 0, 100),
+#     tau = rgamma(5, 1E3, 1E3))
+# }}
+
 
 # Set monitors & run model
 params <- c('beta.wd','beta.lma','mu.beta','sigma')#,'R2','y.rep')
