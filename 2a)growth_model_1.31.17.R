@@ -29,6 +29,7 @@ if(pc==T){
 # PREP FOR TESTING:
 if(pc==F){
   setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+  load("Panama_AnalysisData_6.14.16.RDA") # tdata
   load("Panama_AnalysisData_12.17.16.RDA") # tdata
   load("panama_ITV_traits_6.7.16.RDA") # traits
 }
@@ -94,15 +95,13 @@ dp$size.class <- ifelse(dp$dbh <= cutoff, 1, 2)
 for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
-# TRY TO REMOVE SIZE CLASS BY MODELING RGR
-#dps <- dp
 
 dps$sd5.growth  <- (abs(dps$growth) < (sd(dps$growth)*5))
-dps$sd5.RGR  <- (abs(dps$RGR) < (sd(dps$RGR)*5))
+#dps <- dps[dps$Growth.Include.3,]
+dps <- dps[dps$sd5.growth & dps$Growth.Include.3,]
 
-dps <- dps[dps$Growth.Include.3,]
-#dps <- dps[dps$sd5.growth & dps$Growth.Include.3,]
-dps <- dps[dps$sd5.growth & dps$sd5.RGR & dps$Growth.Include.3,]
+dps$sd5.RGR  <- (abs(dps$RGR) < (sd(dps$RGR)*5))
+dps <- dps[dps$sd5.RGR & dps$Growth.Include.3,]
 
 ### Center / scale other variables within size class
 dps$log.dbh.z <- as.vector(scale(dps$log.dbh))
@@ -178,8 +177,13 @@ data = list (
   n.tree = length(unique(dps$indiv)),
   n.sp = length(unique(dps$spplot)),
   sp = as.numeric(as.factor(dps$spplot)),
+<<<<<<< HEAD
 #  obs.growth = as.numeric(dps$growth),
   obs.growth = as.numeric(dps$RGR.z),
+=======
+  obs.growth = as.numeric(dps$growth),#.z),
+  #  obs.growth = dps$RGR,#as.numeric(dps$growth),#.z),
+>>>>>>> origin/master
   days = dps$days/365,
 #  log.nci = as.numeric(dps[,'log.all.nci.zall']),
 #  log.nci = as.numeric(dps[,'log.all.nci.z']),
@@ -428,6 +432,7 @@ sink("Growth_Model_noITV_2.9.17_noerror.bug")
       }
       
 }"
+<<<<<<< HEAD
     , fill=TRUE)
   sink()  
   
@@ -447,6 +452,65 @@ sink("Growth_Model_noITV_2.9.17_noerror.bug")
       + b2[sp[i]] * log.dbh[i]
       + indiv.effect[tree[i]] * indicator[i]
       }
+=======
+  , fill=TRUE)
+sink()
+
+
+
+
+
+##### Write the model with intraspecific variation #####
+sink("Growth_Model_noITV_1.31.17.bug")
+cat(" model {
+    
+    for (i in 1:N){
+    
+        obs.growth[i] ~ dnorm(mu[i], tau[1])
+        mu[i] <- exp(z[i])
+        z[i] <- b0[sp[i]]
+                + b1[sp[i]] * log.nci[i] 
+                + b2[sp[i]] * log.dbh[i] 
+                + i.tree[tree[i]]
+    }
+    
+    for (j in 1:n.sp){
+    b0[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * tmeans.z[j,1]) + (beta.lma[1] * tmeans.z[j,2]), tau[2])
+    b1[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * tmeans.z[j,1]) + (beta.lma[2] * tmeans.z[j,2]), tau[3])
+    b2[j] ~ dnorm(mu.beta[3], tau[4])
+    }
+    
+    ### prior and random effect ##########
+    for (ind in 1:n.tree){
+    i.tree[ind] ~ dnorm(0, tau[5])
+    }
+    
+    for (t in 1:5){
+    tau[t] ~ dunif(0.0001, 10000)
+    }
+
+    for (m in 1:3){
+    mu.beta[m] ~ dnorm(0, 1.0E-6)
+    }
+
+    for (b in 1:2){
+    beta.wd[b] ~ dnorm(0, 1.0E-6)
+    beta.lma[b] ~ dnorm(0, 1.0E-6)
+    }
+
+}"
+  , fill=TRUE)
+sink()
+
+
+
+
+
+
+
+
+}
+>>>>>>> origin/master
 
       for( j in 1:n.sp ) {
       b0[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * tmeans.z[j,1]) + (beta.lma[1] * tmeans.z[j,2]), tau[2])
@@ -481,6 +545,7 @@ sink("Growth_Model_noITV_2.9.17_noerror.bug")
 ################################################
 params <- c('mu.beta','beta.wd','beta.lma')
 
+<<<<<<< HEAD
 warning(paste("Now working on:", paste(ifelse(p==1,'Cocoli',ifelse(p==2,'BCI','Sherman')), ifelse(size==1,'< 10cm','> 10cm'),sep=" ")), immediate. = T)
   
 mod <- run.jags(model='K:/Bob/Panama/GIT/Panama_Analysis/MODELS/Growth_Model_noITV_2.9.17_error.bug', 
@@ -513,9 +578,30 @@ saveRDS(mod, file=file)
 
 
 
+=======
+mod <- run.jags(model='Growth_Model_noITV_1.31.17.bug', monitor=params, data=data,
+                n.chains=3, burnin=2500, sample=250, adapt=1000, modules=c('glm'), thin=3)
+
+#mod <- run.jags(model='Growth_Model_noITV_1.31.17.bug', monitor=params, data=data,
+#                n.chains=3, burnin=500, sample=250, adapt=100, modules=c('mix','glm'),
+#                factories='mix::TemperedMix sampler off', thin=3)#, method='parallel')
+
+mod.ext <- extend.jags(mod, burnin=1000, sample=500, adapt=1000, thin=3, combine=F)
+
+mod.ext
+
+mod.ext <- extend.jags(mod, burnin=10000, sample=500, adapt=0, 
+                       thin=3, combine=F, method='parallel')
+>>>>>>> origin/master
+
+mod.ext
+
+plot(mod.ext$mcmc)
+
+plot(mod.ext)
 
 
-
+<<<<<<< HEAD
 ### WORK ON BCI LARGE, RESTART MODEL WITH INITIAL VALUES SET 
 setwd("K:/Bob/Panama/RESULTS/_2.14.17/growth") 
 
@@ -541,6 +627,8 @@ mod2 <- run.jags(model='survival_2.2.17_bci2.bug', monitor=params, data=mod$data
 
 mod2 <- extend.jags(mod2, burnin=500, sample=500, adapt=0,
                    thin=3, method='parallel', combine=F)
+=======
+>>>>>>> origin/master
 
 
 mod2 <- extend.jags(mod2, burnin=2000, sample=500, adapt=0,
