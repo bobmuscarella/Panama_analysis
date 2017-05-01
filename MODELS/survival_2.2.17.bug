@@ -1,0 +1,43 @@
+ model {
+      
+      for( i in 1:N ) {
+      
+      alive[i] ~ dbern(t[i])
+      
+      t[i] <- pow(z[i], days[i]/365.25)
+      
+      logit(z[i]) <- beta.1[sp[i]]
+      + beta.2[sp[i]] * log.nci[i]
+      + beta.3[sp[i]] * log.dbh[i]
+      + indiv.effect[tree[i]]
+      }
+      
+      for( j in 1:n.sp ) {
+      ### MULTIVARIATE TRAITS ###
+      beta.1[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * t.pred[j,1]) + (beta.lma[1] * t.pred[j,2]), tau[1])
+      beta.2[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * t.pred[j,1]) + (beta.lma[2] * t.pred[j,2]), tau[2])
+      beta.3[j] ~ dnorm(mu.beta[3], tau[3])
+      t.pred[j,1:2] ~ dmnorm(tmeans.z[j,], omegas[1:2,1:2,j])
+      }
+      
+      ### PRIORS ####
+      for( i.a in 1:n.tree ) {
+      indiv.effect[i.a] ~ dnorm(0, tau[4])
+      }
+
+      for( m in 1:3 ) {
+      mu.beta[m] ~ dnorm(0, 1E-3)
+      }
+      
+      for( b in 1:2 ) {
+      beta.wd[b] ~ dnorm(0, 1E-3)
+      beta.lma[b] ~ dnorm(0, 1E-3)
+      }
+      
+      for( t in 1:4 ) {
+      tau[t] ~ dgamma(1E-3, 1E-3)
+      }
+      
+      sigma <- 1 / sqrt(tau)
+
+}

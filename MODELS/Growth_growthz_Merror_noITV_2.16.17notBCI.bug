@@ -1,0 +1,43 @@
+model{
+        for (i in 1:N){
+        obs.growth[i] ~ dnormmix(mu[1:2, i], m.tau[1:2, i], f)
+        mu[1,i] <- true.growth[i]
+        mu[2,i] <- true.growth[i]
+        sd1[i] <- (0.927 + 0.0038 * (dbh[i] + 15)) * 1.414 / days[i]
+        sd2[i] <- 25.6 * 1.414 / days[i]
+        m.tau[1,i] <- pow(sd1[i], -2)
+        m.tau[2,i] <- pow(sd2[i], -2)
+        true.growth[i] <- exp(true.log.growth[i])
+        true.log.growth[i] ~ dnorm(predict.log.growth[i], tau[1])
+        predict.log.growth[i] <- b0[sp[i]] 
+        + b1[sp[i]] * log.nci[i] 
+        + b2[sp[i]] * log.dbh[i] 
+        + indiv.effect[tree[i]]
+        }
+        
+        for( j in 1:n.sp ) {
+        b0[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * tmeans.z[j,1]) + (beta.lma[1] * tmeans.z[j,2]), tau[2])
+        b1[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * tmeans.z[j,1]) + (beta.lma[2] * tmeans.z[j,2]), tau[3])
+        b2[j] ~ dnorm(mu.beta[3], tau[4])
+        }
+        ### prior and random effect ##########
+        f[1] <- 0.9724
+        f[2] <- 0.0276
+        
+        for( i.a in 1:n.tree ) {
+        indiv.effect[i.a] ~ dnorm(0, tau[5])
+        }
+        
+        for( t in 1:5 ) {
+        tau[t] ~ dgamma(1E-3, 1E-3)
+        }
+        
+        for( m in 1:3 ) {
+        mu.beta[m] ~ dnorm(0, 1E-3)
+        }
+        
+        for( b in 1:2 ) {
+        beta.wd[b] ~ dnorm(0, 1E-3)
+        beta.lma[b] ~ dnorm(0, 1E-3)
+        }
+  }
