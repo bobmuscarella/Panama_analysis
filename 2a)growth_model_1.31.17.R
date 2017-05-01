@@ -29,6 +29,7 @@ if(pc==T){
 # PREP FOR TESTING:
 if(pc==F){
   setwd("/Users/Bob/Projects/Postdoc/Panama/DATA")
+  load("Panama_AnalysisData_6.14.16.RDA") # tdata
   load("Panama_AnalysisData_12.17.16.RDA") # tdata
   load("panama_ITV_traits_6.7.16.RDA") # traits
 }
@@ -73,10 +74,13 @@ dp$size.class <- ifelse(dp$dbh <= cutoff, 1, 2)
     for(size in 1:2) {
 dps <- dp[dp$size.class %in% size,]
 
-#dps$sd5.growth  <- (abs(dps$growth) < (sd(dps$growth)*5))
+dps$sd5.growth  <- (abs(dps$growth) < (sd(dps$growth)*5))
+#dps <- dps[dps$Growth.Include.3,]
+dps <- dps[dps$sd5.growth & dps$Growth.Include.3,]
 
-dps <- dps[dps$Growth.Include.3,]
-#dps <- dps[dps$sd5.growth & dps$Growth.Include.3,]
+dps$sd5.RGR  <- (abs(dps$RGR) < (sd(dps$RGR)*5))
+dps <- dps[dps$sd5.RGR & dps$Growth.Include.3,]
+
 
 ### Center / scale other variables within size class
 dps$log.dbh.z <- as.vector(scale(dps$log.dbh))
@@ -84,7 +88,7 @@ dps$log.all.nci.z <- as.vector(scale(dps$log.all.nci))
 dps$growth.z <- as.vector(scale(dps$growth, center=F))
 
 dps <- dps[,c('spplot','plot','census','growth.z','growth','dbh',
-              'log.dbh.z','id','log.all.nci.z','days')]
+              'RGR','log.dbh.z','id','log.all.nci.z','days')]
 
 # Create an individual ID
 dps <- droplevels(dps)
@@ -143,6 +147,7 @@ data = list (
   n.sp = length(unique(dps$spplot)),
   sp = as.numeric(as.factor(dps$spplot)),
   obs.growth = as.numeric(dps$growth),#.z),
+  #  obs.growth = dps$RGR,#as.numeric(dps$growth),#.z),
   days = dps$days/365,
   log.nci = as.numeric(dps[,'log.all.nci.z']),
   dbh = as.vector(dps$dbh),
@@ -232,21 +237,86 @@ setwd("K:/Bob/Panama/GIT/Panama_Analysis/MODELS")
 }"
   , fill=TRUE)
 sink()
+
+
+
+
+
+##### Write the model with intraspecific variation #####
+sink("Growth_Model_noITV_1.31.17.bug")
+cat(" model {
+    
+    for (i in 1:N){
+    
+        obs.growth[i] ~ dnorm(mu[i], tau[1])
+        mu[i] <- exp(z[i])
+        z[i] <- b0[sp[i]]
+                + b1[sp[i]] * log.nci[i] 
+                + b2[sp[i]] * log.dbh[i] 
+                + i.tree[tree[i]]
+    }
+    
+    for (j in 1:n.sp){
+    b0[j] ~ dnorm(mu.beta[1] + (beta.wd[1] * tmeans.z[j,1]) + (beta.lma[1] * tmeans.z[j,2]), tau[2])
+    b1[j] ~ dnorm(mu.beta[2] + (beta.wd[2] * tmeans.z[j,1]) + (beta.lma[2] * tmeans.z[j,2]), tau[3])
+    b2[j] ~ dnorm(mu.beta[3], tau[4])
+    }
+    
+    ### prior and random effect ##########
+    for (ind in 1:n.tree){
+    i.tree[ind] ~ dnorm(0, tau[5])
+    }
+    
+    for (t in 1:5){
+    tau[t] ~ dunif(0.0001, 10000)
+    }
+
+    for (m in 1:3){
+    mu.beta[m] ~ dnorm(0, 1.0E-6)
+    }
+
+    for (b in 1:2){
+    beta.wd[b] ~ dnorm(0, 1.0E-6)
+    beta.lma[b] ~ dnorm(0, 1.0E-6)
+    }
+
+}"
+  , fill=TRUE)
+sink()
+
+
+
+
+
+
+
+
 }
 
 ################################################
 ### Set initial values, monitors, iterations and run model ###
 ################################################
-params <- c('b0.overall','b1.overall','b2.overall','b0.wd','b0.lma','b1.wd','b1.lma')
+params <- c('mu.beta','beta.wd','beta.lma')
 
-j.mod <- jags.model(file="Test_Growth_Model.bug", data=data, n.chains=3, n.adapt=1000)
+mod <- run.jags(model='Growth_Model_noITV_1.31.17.bug', monitor=params, data=data,
+                n.chains=3, burnin=2500, sample=250, adapt=1000, modules=c('glm'), thin=3)
 
-update(j.mod, n.iter=1000)
+#mod <- run.jags(model='Growth_Model_noITV_1.31.17.bug', monitor=params, data=data,
+#                n.chains=3, burnin=500, sample=250, adapt=100, modules=c('mix','glm'),
+#                factories='mix::TemperedMix sampler off', thin=3)#, method='parallel')
 
-samp <- jags.samples(j.mod, params, n.iter=900, n.thin=3)
+mod.ext <- extend.jags(mod, burnin=1000, sample=500, adapt=1000, thin=3, combine=F)
 
-summary(samp$b0.wd, quantile, c(.025,0.5,.975))$stat
+mod.ext
 
+mod.ext <- extend.jags(mod, burnin=10000, sample=500, adapt=0, 
+                       thin=3, combine=F, method='parallel')
+
+mod.ext
+
+plot(mod.ext$mcmc)
+
+plot(mod.ext)
 
 # mod <- jagsUI::jags(data, inits=NULL, params, 'Test_Growth_Model_noITV.bug',
 #                     n.chains=3, n.adapt=1000,
@@ -254,13 +324,6 @@ summary(samp$b0.wd, quantile, c(.025,0.5,.975))$stat
 #                     parallel=F, store.data=F, modules=c('mix','glm'))
 # 
 # mod <- update(mod, n.iter=5000, n.burnin=2500, n.thin=2, modules=c('mix','glm'))
-
-# mod <- run.jags(model='Test_Growth_Model2.bug', monitor=params, data=data, 
-#                 n.chains=3, burnin=500, sample=250, adapt=100, modules=c('mix','glm'), 
-#                 factories='mix::TemperedMix sampler off', thin=3)#, method='parallel')
-
-
-
 
 
 
